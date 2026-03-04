@@ -2,11 +2,13 @@ const express = require('express')
 const app = express()
 const clientesRouter = require('./routes/clientes')
 const authRoutes = require('./routes/auth')
+const piezasRoutes = require('./routes/piezas');
 
 
 app.use(express.json())
 app.use('/api/clientes', clientesRouter)
 app.use('/api/auth', authRoutes)
+app.use('/api/piezas', piezasRoutes);
 
 app.get('/', (req, res) => {
   res.send('USI backend funcionando')

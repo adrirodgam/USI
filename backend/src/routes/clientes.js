@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 const supabase = require('../services/supabase')
 
-router.get('/clientes', async (req, res) => {
+router.get('/', async (req, res) => {
   console.log('Intentando obtener clientes...')
   const { data, error } = await supabase
     .from('clientes')

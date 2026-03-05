@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabase');
-const verificarToken = require('../middleware/authMiddleware');
+const verificarToken = require('../middleware/auth');
 
 // GET /api/piezas/:clienteId - Obtener piezas por cliente
 router.get('/:clienteId', verificarToken, async (req, res) => {

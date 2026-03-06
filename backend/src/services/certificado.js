@@ -45,13 +45,14 @@ doc.render({
     sales_order: data.sales_order,
     date_code: data.date_code,
     part_number: data.part_number,
-    drawing_number: data.drawing_number,
+    drawing_no: data.drawing_no,
     revision: data.revision,
     work_order: data.work_order,
     quantity: data.quantity,
-    serial_number: data.serial_number,
+    serial_numbers: data.serial_numbers,
     inspector: data.inspector,
     date: data.date,
+    comments: data.comments
 });
 
 

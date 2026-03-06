@@ -40,7 +40,7 @@ const doc = new Docxtemplater(zip, {
  */
 doc.render({
     customer_name: data.customer_name,
-    purchase_name: data.purchase_name,
+    purchase_order: data.purchase_order,
     packing_slip: data.packing_slip,
     sales_order: data.sales_order,
     date_code: data.date_code,

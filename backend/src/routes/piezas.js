@@ -10,7 +10,7 @@ router.get('/:clienteId', verificarToken, async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('piezas')
-            .select('*')
+            .select('*, clientes(nombre)')
             .eq('cliente_id', clienteId);   
 
         if (error) return res.status(400).json({ error: error.message });

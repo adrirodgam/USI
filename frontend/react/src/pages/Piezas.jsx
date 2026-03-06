@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { getPiezas } from "../api/piezas"
 
-export default function Piezas({ clienteId, token }) {
+export default function Piezas({ clienteId, token, onGenerarCOC }) {
   const [piezas, setPiezas] = useState([])
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export default function Piezas({ clienteId, token }) {
               <td>{pieza.part_number}</td>
               <td>{pieza.drawing_no}</td>
               <td>{pieza.revision}</td>
-              <td><button>Generar COC</button></td>
+              <td><button onClick={() => onGenerarCOC(pieza)}>Generar COC</button></td>
             </tr>
           ))}
         </tbody>

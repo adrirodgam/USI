@@ -4,16 +4,18 @@ const app = express()
 
 const clientesRouter = require('./routes/clientes')
 const authRoutes = require('./routes/auth')
-const piezasRoutes = require('./routes/piezas');
-const certificadosRoutes = require('./routes/certificados');
+const piezasRoutes = require('./routes/piezas')
+const certificadosRoutes = require('./routes/certificados')
+const usuariosRoutes = require('./routes/usuarios')
 
 app.use(cors()) 
 app.use(express.json())
 
 app.use('/api/clientes', clientesRouter)
 app.use('/api/auth', authRoutes)
-app.use('/api/piezas', piezasRoutes);
-app.use('/api/certificados', certificadosRoutes);
+app.use('/api/piezas', piezasRoutes)
+app.use('/api/certificados', certificadosRoutes)
+app.use('/api/usuarios', usuariosRoutes);
 
 console.log('Certificados registrado')
 

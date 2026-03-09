@@ -1,44 +1,58 @@
-
 const Docxtemplater = require("docxtemplater");
+const ImageModule = require("docxtemplater-image-module-free");
 const PizZip = require("pizzip");
-
-// Builtin file system utilities
 const fs = require("fs");
 const path = require("path");
+const supabaseAdmin = require("./supabaseAdmin");
 
-function generarCertificado(data) {
-console.log('Buscando template en:', path.resolve(__dirname, "../templates/template.docx"))
+async function generarCertificado(data) {
+  console.log('Buscando template en:', path.resolve(__dirname, "../templates/template.docx"))
 
-// Load the docx file as binary content
-const content = fs.readFileSync(
+  let firmaBuffer = null
+  if (data.firma_url) {
+    const { data: firmaData, error } = await supabaseAdmin
+      .storage
+      .from('Firmas')
+      .download(data.firma_url)
+    
+    if (!error && firmaData) {
+      const arrayBuffer = await firmaData.arrayBuffer()
+      firmaBuffer = Buffer.from(arrayBuffer)
+      console.log('Firma descargada, tamaño:', firmaBuffer.length)
+    } else {
+      console.log('No se pudo descargar la firma:', error)
+    }
+  }
+
+  const imageModule = new ImageModule({
+    centered: false,
+    getImage: function(tagValue, tagName) {
+      console.log('getImage llamado, retornando buffer de tamaño:', firmaBuffer ? firmaBuffer.length : 'NULL')
+      return firmaBuffer
+    },
+    getSize: function(img, tagValue, tagName) {
+      return [115, 35]
+    }
+  })
+
+  const content = fs.readFileSync(
     path.resolve(__dirname, "../templates/template.docx"),
     "binary"
-);
+  )
 
-// Unzip the content of the file
-const zip = new PizZip(content);
+  const zip = new PizZip(content)
 
-/*
- * Parse the template.
- * This function throws an error if the template is invalid,
- * for example, if the template is "Hello {user" (missing closing tag)
- */
-const doc = new Docxtemplater(zip, {
+  const doc = new Docxtemplater(zip, {
+    modules: [imageModule],
     paragraphLoop: true,
     linebreaks: true,
-    delimiters: {
-        start: "{{",
-        end: "}}"
-    }
-});
+    delimiters: { start: "{{", end: "}}" }
+  })
 
-/*
- * Render the document : Replaces :
- * - {first_name} with John
- * - {last_name} with Doe,
- * ...
- */
-doc.render({
+  const meses = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const hoy = new Date()
+
+  doc.render({
     customer_name: data.customer_name,
     purchase_order: data.purchase_order,
     packing_slip: data.packing_slip,
@@ -51,14 +65,14 @@ doc.render({
     quantity: data.quantity,
     serial_numbers: data.serial_numbers,
     inspector: data.inspector,
-    date: data.date,
-    comments: data.comments
-});
+    date: `${hoy.getDate()}-${meses[hoy.getMonth()]}-${hoy.getFullYear()}`,
+    comments: data.comments,
+    firma: "firma" 
+  })
 
-
-const buf = doc.toBuffer()
-console.log('Buffer generado, tamaño:', buf.length)
-return buf
+  const buf = doc.toBuffer()
+  console.log('Buffer generado, tamaño:', buf.length)
+  return buf
 }
 
 module.exports = generarCertificado

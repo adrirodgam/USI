@@ -9,25 +9,24 @@ export default function Login ({ onLoginSuccess }) {
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    setError("") // Limpiamos errores previos antes de intentar
+    setError("")
 
-    const token = await login(idEmpleado, password)
-    
-    if (token) {
-      localStorage.setItem("token", token)
-      console.log("Token recibido y guardado:", token)
-      
-      // ¡ESTA LÍNEA HACE EL SALTO! 
-      // Si onLoginSuccess existe, la ejecutamos para cambiar a la pantalla de clientes
-      if (onLoginSuccess) {
-        onLoginSuccess();
+    const resultado = await login(idEmpleado, password)
+
+    if (resultado) {
+      localStorage.setItem("token", resultado.session.access_token)
+      localStorage.setItem("nombre", resultado.usuario.nombre)
+      localStorage.setItem("inicial", resultado.usuario.inicial)
+
+      if (onLoginSuccess){
+        onLoginSuccess()
       }
     } else {
-      setError("Credenciales incorrectas")
+      setError("ID de empleado o contraseña incorrectos")
     }
   }
 
-  return (
+  return ( 
     <div>
       <h2>Iniciar Sesión - Libra Industries</h2>
       <form onSubmit={handleLogin}>

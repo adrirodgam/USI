@@ -3,6 +3,7 @@ import { generarCOC } from "../api/certificados"
 import { getInspectores } from "../api/usuarios"
 
 export default function GenerarCOC({ pieza, token, onVolver }) {
+  const [sn, setSn] = useState("")
   const [po, setPo] = useState("")
   const [so, setSo] = useState("")
   const [wo, setWo] = useState("")
@@ -25,12 +26,12 @@ export default function GenerarCOC({ pieza, token, onVolver }) {
       revision: pieza.revision,
       packing_slip: "N/A",
       date_code: "N/A",
-      serial_numbers: "N/A",
+      serial_numbers: sn || "N/A",
       purchase_order: po,
       sales_order: so,
       work_order: wo,
       quantity: quantity,
-      comments: comments,
+      comments: comments || "N/A",
       inspector: inspectorSeleccionado,
       date: new Date().toLocaleDateString()
     }
@@ -67,6 +68,8 @@ export default function GenerarCOC({ pieza, token, onVolver }) {
           <input value={wo} onChange={e => setWo(e.target.value)} style={{ display: 'block', marginBottom: '10px', width: '100%' }} />
           <label>Quantity</label>
           <input value={quantity} onChange={e => setQuantity(e.target.value)} style={{ display: 'block', marginBottom: '10px', width: '100%' }} />
+          <label>Serial Number</label>
+          <input value={sn} onChange={e => setSn(e.target.value)} style={{ display: 'block', marginBottom: '10px', width: '100%' }} />
           <label>Comments</label>
           <input value={comments} onChange={e => setComments(e.target.value)} style={{ display: 'block', marginBottom: '10px', width: '100%' }} />
           <label>Inspector</label>

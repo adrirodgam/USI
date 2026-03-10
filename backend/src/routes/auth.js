@@ -12,17 +12,26 @@ const LoginSchema = z.object({
 router.post('/login', async (req, res)  => {
     try {
         const datosValidados = LoginSchema.safeParse(req.body)
+        const email = `${datosValidados.data.id_empleado}@libraind.com`
 
         const { data, error } = await supabase.auth.signInWithPassword({
-                email: datosValidados.data.id_empleado,
-                password: datosValidados.data.password
-            })
-            
+        email: email,
+        password: datosValidados.data.password
+        })
+
         if (error) {
-            return res.status(401).json({ error: 'Credenciales incorrectas' })
+        return res.status(401).json({ error: 'Credenciales incorrectas' })
         }
 
-        res.json({ session: data.session })
+        const { data: usuario } = await supabase
+            .from('usuarios')
+            .select('nombre, inicial')
+            .eq('id_empleado', datosValidados.data.id_empleado)
+            .single()
+
+        res.json({ session: data.session, usuario })
+
+
     } catch (err) {
         res.status(500).json({ error: 'Error en el servidor' })
     }

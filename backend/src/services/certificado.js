@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const supabaseAdmin = require("./supabaseAdmin");
 
+
 async function generarCertificado(data) {
   console.log('Buscando template en:', path.resolve(__dirname, "../templates/template.docx"))
 

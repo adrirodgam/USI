@@ -3,6 +3,8 @@ import Login from './pages/login.jsx'
 import Clientes from './pages/Clientes.jsx'
 import Piezas from './pages/Piezas.jsx'
 import GenerarCOC from './pages/GenerarCOC.jsx'
+import Checklists from './pages/Checklists.jsx'
+
 
 function App() {
   const [view, setView] = useState(localStorage.getItem('token') ? 'clientes' : 'login')
@@ -30,6 +32,13 @@ function App() {
           pieza={piezaSeleccionada} 
           token={token} 
           onVolver={() => setView('piezas')}
+        />
+      )}
+      {view === 'checklists' && (
+        <Checklists
+          clienteId={clienteId}
+          token={token}
+          onVolver={() => setView('clientes')}
         />
       )}
     </div>

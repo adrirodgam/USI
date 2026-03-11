@@ -7,7 +7,7 @@ import Checklists from './pages/Checklists.jsx'
 
 
 function App() {
-  const [view, setView] = useState(localStorage.getItem('token') ? 'clientes' : 'login')
+  const [view, setView] = useState('login')
   const [clienteId, setClienteId] = useState(null)
   const [piezaSeleccionada, setPiezaSeleccionada] = useState(null)
   const token = localStorage.getItem('token')
@@ -18,7 +18,10 @@ function App() {
         <Login onLoginSuccess={() => setView('clientes')} />
       )}
       {view === 'clientes' && (
-        <Clientes onSelectCliente={(id) => { setClienteId(id); setView('piezas') }} />
+        <Clientes 
+        onSelectCliente={(id) => { setClienteId(id); setView('piezas') }}
+        onVerChecklists={(id) => { setClienteId(id); setView('checklists') }}
+        />
       )}
       {view === 'piezas' && (
         <Piezas 

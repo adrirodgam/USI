@@ -17,6 +17,7 @@ export default function Login ({ onLoginSuccess }) {
       localStorage.setItem("token", resultado.session.access_token)
       localStorage.setItem("nombre", resultado.usuario.nombre)
       localStorage.setItem("inicial", resultado.usuario.inicial)
+      localStorage.setItem("rol", resultado.usuario.rol)
 
       if (onLoginSuccess){
         onLoginSuccess()

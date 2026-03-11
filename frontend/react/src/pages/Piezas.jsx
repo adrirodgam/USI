@@ -3,6 +3,7 @@ import { getPiezas } from "../api/piezas"
 
 export default function Piezas({ clienteId, token, onGenerarCOC }) {
   const [piezas, setPiezas] = useState([])
+  const rol = localStorage.getItem('rol') 
 
   useEffect(() => {
     getPiezas(clienteId, token).then(data => setPiezas(data))
@@ -26,7 +27,8 @@ export default function Piezas({ clienteId, token, onGenerarCOC }) {
               <td>{pieza.part_number}</td>
               <td>{pieza.drawing_no}</td>
               <td>{pieza.revision}</td>
-              <td><button onClick={() => onGenerarCOC(pieza)}>Generar COC</button></td>
+              <td>{rol === 'inspector' && <button onClick={() => onGenerarCOC(pieza)}>Generar COC</button>}</td>
+              <td>{rol === 'operador' && <button onClick={() => onVerChecklists(pieza.cliente_id)}>Ver Checklists</button>}</td>
             </tr>
           ))}
         </tbody>

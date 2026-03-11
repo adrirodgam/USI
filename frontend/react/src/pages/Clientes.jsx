@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-export default function Clientes({ onSelectCliente }) {
+export default function Clientes({ onSelectCliente, onVerChecklists }) {
   const [lista, setLista] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const rol = localStorage.getItem('rol');
 
   useEffect(() => {
     const obtenerClientes = async () => {
@@ -15,6 +16,10 @@ export default function Clientes({ onSelectCliente }) {
         setLista(res.data);
         setCargando(false);
       } catch (err) {
+        if (err.response.status === 401) {
+          localStorage.clear();
+          window.location.reload();
+        }
         console.error("Error al traer clientes", err);
         setCargando(false);
       }
@@ -56,10 +61,9 @@ export default function Clientes({ onSelectCliente }) {
                   <button 
                     onClick={() => onSelectCliente(c.id)}
                     style={{ marginRight: '5px' }}
->
+                  >
                     Ver piezas
                   </button>
-                  <button>Editar</button>
                 </td>
               </tr>
             ))}
@@ -69,7 +73,6 @@ export default function Clientes({ onSelectCliente }) {
     </div>
   );
 }
-
 
 const tableHeaderStyle = { padding: '12px', borderBottom: '2px solid #ddd' };
 const tableCellStyle = { padding: '12px' };

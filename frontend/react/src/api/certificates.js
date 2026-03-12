@@ -4,9 +4,9 @@ const apiClient = axios.create({
   baseURL: 'http://localhost:3000/api' 
 })
 
-export const generarCOC = async (data, token) => {
+export const generateCOC = async (data, token) => {
   try {
-    const response = await apiClient.post('/certificados', data, {
+    const response = await apiClient.post('/certificates', data, {
       headers: { Authorization: `Bearer ${token}` },
       responseType: 'blob'
     })

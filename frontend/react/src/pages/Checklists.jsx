@@ -1,45 +1,57 @@
 import { useState, useEffect } from "react"
 import { getChecklists } from "../api/checklists"
 
-export default function Checklists({ clienteId, token, onVolver }) {
+/**
+ * Checklists Component
+ * Lists external form links and auto-fills operator information.
+ */
+export default function Checklists({ customerId, token, onBack }) {
   const [checklists, setChecklists] = useState([])
 
   useEffect(() => {
-    getChecklists(clienteId, token).then(data => setChecklists(data))
-  }, [clienteId])
+    // API call using english parameters
+    getChecklists(customerId, token).then(data => setChecklists(data))
+  }, [customerId])
 
-  const nombre = localStorage.getItem("nombre")
-  const inicial = localStorage.getItem("iniciales")
-
-  const abrirChecklist = (url) => {
-    const urlFinal = `${url}?prefill_Operator+Name=${encodeURIComponent(nombre)}&prefill_Operator+Initials=${encodeURIComponent(inicial)}`
-    window.open(urlFinal, '_blank')
+  const openForm = (url) => {
+    // Prefill operator data via URL parameters (Jotform/Typeform standard)
+    const name = localStorage.getItem("name")
+    const initials = localStorage.getItem("initial")
+    const prefillParams = `?prefill_Operator+Name=${encodeURIComponent(name)}&prefill_Operator+Initials=${encodeURIComponent(initials)}`
+    window.open(url + prefillParams, '_blank')
   }
 
   return (
-    <div>
-      <h2>Checklists</h2>
-      <button onClick={onVolver}>Volver</button>
-      <table>
-        <thead>
-          <tr>
-            <th>Part Number</th>
-            <th>Acción</th>
-          </tr>
-        </thead>
-        <tbody>
-          {checklists.map(checklist => (
-            <tr key={checklist.id}>
-              <td>{checklist.parte_no}</td>
-              <td>
-                <button onClick={() => abrirChecklist(checklist.checklist_url)}>
-                  Abrir Checklist
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div style={styles.page}>
+      <button onClick={onBack} style={styles.backBtn}>← Volver</button>
+      <h2 style={{margin: '20px 0', color: '#202124'}}>Formatos de Inspección</h2>
+      
+      <div style={styles.list}>
+        {checklists.map(item => (
+          <div key={item.id} style={styles.listItem}>
+            <div style={styles.itemInfo}>
+              <div style={styles.iconBox}>📋</div>
+              <div>
+                <strong style={{display: 'block', fontSize: '16px'}}>{item.part_no}</strong>
+                <span style={{fontSize: '12px', color: '#5f6368'}}>Formulario Externo</span>
+              </div>
+            </div>
+            <button onClick={() => openForm(item.checklist_url)} style={styles.openBtn}>
+              Llenar Formato
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   )
+}
+
+const styles = {
+  page: { padding: '40px', backgroundColor: '#f8f9fa', minHeight: '100vh' },
+  list: { display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' },
+  listItem: { backgroundColor: 'white', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #f1f3f4' },
+  itemInfo: { display: 'flex', alignItems: 'center', gap: '15px' },
+  iconBox: { fontSize: '24px', backgroundColor: '#f1f3f4', padding: '10px', borderRadius: '8px' },
+  openBtn: { backgroundColor: '#1a73e8', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' },
+  backBtn: { border: 'none', background: 'none', color: '#1a73e8', cursor: 'pointer', fontWeight: 'bold' }
 }

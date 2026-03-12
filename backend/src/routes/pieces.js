@@ -3,13 +3,13 @@ const router = express.Router();
 const supabase = require('../services/supabase');
 const verifyToken = require('../middleware/auth.middleware');
 
-// GET /api/checklists/:clientId - Get checklists by client
+// GET /api/pieces/:clientId - Get pieces by client
 router.get('/:clientId', verifyToken, async (req, res) => {
     const { clientId } = req.params;
     
     try {
         const { data, error } = await supabase
-            .from('checklists')
+            .from('pieces')
             .select('*, customers(name)')
             .eq('customer_id', clientId);   
 

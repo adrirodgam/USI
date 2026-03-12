@@ -5,31 +5,30 @@ const fs = require("fs");
 const path = require("path");
 const supabaseAdmin = require("./supabaseAdmin");
 
+async function generateCertificate(data) {
+  console.log('Looking for template at:', path.resolve(__dirname, "../templates/template.docx"))
 
-async function generarCertificado(data) {
-  console.log('Buscando template en:', path.resolve(__dirname, "../templates/template.docx"))
-
-  let firmaBuffer = null
-  if (data.firma_url) {
-    const { data: firmaData, error } = await supabaseAdmin
+  let signatureBuffer = null
+  if (data.signature_url) {
+    const { data: signatureData, error } = await supabaseAdmin
       .storage
-      .from('Firmas')
-      .download(data.firma_url)
+      .from('Signatures') // Asegúrate de que el bucket en Supabase también se llame 'Signatures'
+      .download(data.signature_url)
     
-    if (!error && firmaData) {
-      const arrayBuffer = await firmaData.arrayBuffer()
-      firmaBuffer = Buffer.from(arrayBuffer)
-      console.log('Firma descargada, tamaño:', firmaBuffer.length)
+    if (!error && signatureData) {
+      const arrayBuffer = await signatureData.arrayBuffer()
+      signatureBuffer = Buffer.from(arrayBuffer)
+      console.log('Signature downloaded, size:', signatureBuffer.length)
     } else {
-      console.log('No se pudo descargar la firma:', error)
+      console.log('Could not download signature:', error)
     }
   }
 
   const imageModule = new ImageModule({
     centered: false,
     getImage: function(tagValue, tagName) {
-      console.log('getImage llamado, retornando buffer de tamaño:', firmaBuffer ? firmaBuffer.length : 'NULL')
-      return firmaBuffer
+      console.log('getImage called, returning buffer size:', signatureBuffer ? signatureBuffer.length : 'NULL')
+      return signatureBuffer
     },
     getSize: function(img, tagValue, tagName) {
       return [115, 35]
@@ -50,8 +49,8 @@ async function generarCertificado(data) {
     delimiters: { start: "{{", end: "}}" }
   })
 
-  const meses = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const hoy = new Date()
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const today = new Date()
 
   doc.render({
     customer_name: data.customer_name,
@@ -66,14 +65,14 @@ async function generarCertificado(data) {
     quantity: data.quantity,
     serial_numbers: data.serial_numbers,
     inspector: data.inspector,
-    date: `${hoy.getDate()}-${meses[hoy.getMonth()]}-${hoy.getFullYear()}`,
+    date: `${today.getDate()}-${months[today.getMonth()]}-${today.getFullYear()}`,
     comments: data.comments,
-    firma: "firma" 
+    signature: "signature"
   })
 
   const buf = doc.toBuffer()
-  console.log('Buffer generado, tamaño:', buf.length)
+  console.log('Buffer generated, size:', buf.length)
   return buf
 }
 
-module.exports = generarCertificado
+module.exports = generateCertificate

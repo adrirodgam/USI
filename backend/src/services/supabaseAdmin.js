@@ -7,4 +7,3 @@ const supabaseAdmin = createClient(
 )
 
 module.exports = supabaseAdmin
-

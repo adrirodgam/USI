@@ -3,15 +3,15 @@ const router = express.Router()
 const supabase = require('../services/supabase')
 
 router.get('/', async (req, res) => {
-  console.log('Intentando obtener clientes...')
+  console.log('Attempting to fetch customers...')
   const { data, error } = await supabase
-    .from('clientes')
+    .from('customers')
     .select('*')
   if (error) {
-    console.error('Error de Supabase:', error)
+    console.error('Supabase error:', error)
     res.status(500).json({ error: error.message })
   } else {
-    console.log('Datos obtenidos:', data)
+    console.log('Data fetched:', data)
     res.json(data)
   }
 })

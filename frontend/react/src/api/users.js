@@ -4,9 +4,9 @@ const apiClient = axios.create({
   baseURL: 'http://localhost:3000/api' 
 })
 
-export const getInspectores = async (token) => {
+export const getInspectors = async (token) => {
   try {
-    const response = await apiClient.get('/usuarios', {
+    const response = await apiClient.get('/users', {
       headers: { Authorization: `Bearer ${token}` }
     })
     return response.data

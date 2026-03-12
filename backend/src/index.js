@@ -2,32 +2,33 @@ const express = require('express')
 const cors = require('cors') 
 const app = express()
 
-const clientesRouter = require('./routes/clientes')
+// Route imports
+const customersRouter = require('./routes/customers')
 const authRoutes = require('./routes/auth')
-const piezasRoutes = require('./routes/piezas')
-const certificadosRoutes = require('./routes/certificados')
-const usuariosRoutes = require('./routes/usuarios')
+const piecesRoutes = require('./routes/pieces')
+const certificatesRoutes = require('./routes/certificates')
+const usersRoutes = require('./routes/users')
 const checklistsRoutes = require('./routes/checklists')
-
 
 app.use(cors()) 
 app.use(express.json())
 
-app.use('/api/clientes', clientesRouter)
+// API Route registration
+app.use('/api/customers', customersRouter)
 app.use('/api/auth', authRoutes)
-app.use('/api/piezas', piezasRoutes)
-app.use('/api/certificados', certificadosRoutes)
-app.use('/api/usuarios', usuariosRoutes);
-app.use('/api/checklists', checklistsRoutes);
+app.use('/api/pieces', piecesRoutes)
+app.use('/api/certificates', certificatesRoutes)
+app.use('/api/users', usersRoutes)
+app.use('/api/checklists', checklistsRoutes)
 
-console.log('Certificados registrado')
+console.log('Certificates registered')
 
 app.get('/', (req, res) => {
-  res.send('USI backend funcionando')
+  res.send('USI backend running')
 })
 
-console.log('Rutas registradas')
+console.log('Routes registered')
 
 app.listen(3000, () => {
-  console.log('Servidor corriendo en puerto 3000')
+  console.log('Server running on port 3000')
 })

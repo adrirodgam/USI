@@ -14,6 +14,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
     "airtable": "^0.12.2",
+    "axios": "^1.13.6",
     "cors": "^2.8.6",
     "docxtemplater": "^3.68.3",
     "docxtemplater-image-module-free": "^1.1.1",

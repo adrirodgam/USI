@@ -1,26 +1,25 @@
 import { useState, useEffect } from "react"
-import { getChecklists } from "../api/checklists"
-
+import { getChecklists, registerOnSmartsheet } from "../api/checklists"
+ 
 /**
  * Checklists Component
- * Lists external form links and auto-fills operator information.
+ * Lists checklists and registers operator identity on Smartsheet.
  */
 export default function Checklists({ customerId, token, onBack }) {
   const [checklists, setChecklists] = useState([])
-
+  const [loading, setLoading] = useState(null)
+ 
   useEffect(() => {
-    // API call using english parameters
     getChecklists(customerId, token).then(data => setChecklists(data))
   }, [customerId])
-
-  const openForm = (url) => {
-    // Prefill operator data via URL parameters (Jotform/Typeform standard)
-    const name = localStorage.getItem("name")
-    const initials = localStorage.getItem("initial")
-    const prefillParams = `?prefill_Operator+Name=${encodeURIComponent(name)}&prefill_Operator+Initials=${encodeURIComponent(initials)}`
-    window.open(url + prefillParams, '_blank')
-  }
-
+ 
+  const openForm = (sheetUrl) => {
+  const name = localStorage.getItem("name")
+  const initial = localStorage.getItem("initial")
+  const prefillUrl = `${sheetUrl}?Operador=${encodeURIComponent(name)}&Inicial=${encodeURIComponent(initial)}`
+  window.open(prefillUrl, '_blank')
+}
+ 
   return (
     <div style={styles.page}>
       <button onClick={onBack} style={styles.backBtn}>← Volver</button>
@@ -36,8 +35,12 @@ export default function Checklists({ customerId, token, onBack }) {
                 <span style={{fontSize: '12px', color: '#5f6368'}}>Formulario Externo</span>
               </div>
             </div>
-            <button onClick={() => openForm(item.checklist_url)} style={styles.openBtn}>
-              Llenar Formato
+            <button 
+              onClick={() => openForm(item.checklist_url)} 
+              disabled={loading === item.sheet_id}
+              style={styles.openBtn}
+            >
+              {loading === item.sheet_id ? 'Registrando...' : 'Llenar Formato'}
             </button>
           </div>
         ))}
@@ -45,7 +48,7 @@ export default function Checklists({ customerId, token, onBack }) {
     </div>
   )
 }
-
+ 
 const styles = {
   page: { padding: '40px', backgroundColor: '#f8f9fa', minHeight: '100vh' },
   list: { display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' },

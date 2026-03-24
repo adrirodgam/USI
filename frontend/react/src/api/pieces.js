@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const apiClient = axios.create({ 
-  baseURL: 'http://localhost:3000/api/pieces' 
+  baseURL: 'http://localhost:3000/api/pieces' // Asegúrate que sea "pieces", no "places"
 })
 
 export const getPieces = async (customerId, token) => {
@@ -11,6 +11,19 @@ export const getPieces = async (customerId, token) => {
     })
     return response.data
   } catch (err) {
+    console.error('Error getting pieces:', err)
     return []
+  }
+}
+
+export const createPiece = async (pieceData, token) => {
+  try {
+    const response = await apiClient.post('/', pieceData, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    return response.data
+  } catch (err) { 
+    console.error('Error creating piece:', err)
+    throw err
   }
 }

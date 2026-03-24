@@ -88,6 +88,12 @@ function App() {
           onBack={() => setView('pieces')}
         />
       )}
+
+      {/* DASHBOARD: A future enhancement */}
+      {view === 'dashboard' && (
+        <Dashboard />
+      )}
+      
     </div>
   )
 }

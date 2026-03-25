@@ -1,36 +1,50 @@
-import { useState } from "react"
-import { User, Lock, Shield } from "lucide-react";
-import { login } from "../api/authRequests"
-import logoLibra from "../assets/libraLogo.png"
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { User, Lock } from "lucide-react";
+import { login } from "../api/authRequests";
+import { useApp } from "../context/AppContext";
+import logoLibra from "../assets/libraLogo.png";
 
 /**
  * Login Component
- * Handles user authentication and stores session data in localStorage.
+ * Handles user authentication and redirects to dashboard on success.
  */
-export default function Login({ onLoginSuccess }) {
-  const [employeeId, setEmployeeId] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
+export default function Login() {
+  const [employeeId, setEmployeeId] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  
+  const { handleLoginSuccess } = useApp();
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setError("")
+    e.preventDefault();
+    setError("");
+    setLoading(true);
     
-    // API call using refactored english naming convention
-    const result = await login(employeeId, password)
+    try {
+      const result = await login(employeeId, password);
 
-    if (result) {
-      // Store session metadata for global app access
-      localStorage.setItem("token", result.session.access_token)
-      localStorage.setItem("name", result.user.name)
-      localStorage.setItem("role", result.user.role)
-      localStorage.setItem("initial", result.user.initial)
-      onLoginSuccess() 
-    } else {
-      // User-facing error message in Spanish
-      setError("ID de empleado o contraseña incorrectos")
+      if (result) {
+        const token = result.session.access_token;
+        localStorage.setItem("token", token);
+        localStorage.setItem("name", result.user.name);
+        localStorage.setItem("role", result.user.role);
+        localStorage.setItem("initial", result.user.initial);
+        
+        handleLoginSuccess(token);
+        navigate("/");
+      } else {
+        setError("ID de empleado o contraseña incorrectos");
+      }
+    } catch (err) {
+      setError("Error al conectar con el servidor");
+      console.error("Login error:", err);
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div
@@ -82,58 +96,17 @@ export default function Login({ onLoginSuccess }) {
           {/* Content */}
           <div className="relative z-10">
             {/* Logo Libra Industries */}
-            <div className="mb-8 flex justify-center">
+            <div className="flex justify-center">
               <img 
                 src={logoLibra} 
                 alt="Libra Industries" 
                 style={{
-                  height: '170px',
+                  height: '200px',
                   width: 'auto',
                   objectFit: 'contain',
                   filter: 'brightness(0) invert(1)',
                 }}
               />
-            </div>
-            
-            <p
-              style={{
-                fontFamily: 'var(--font-body)',
-                fontWeight: 500,
-                fontSize: '16px',
-                color: 'rgba(255,255,255,0.75)',
-                lineHeight: 1.6,
-                marginBottom: '32px',
-                textAlign: 'center',
-              }}
-            >
-              La plataforma más confiable para la gestión de calidad en manufactura de precisión.
-            </p>
-            
-            {/* Badge/Tag */}
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full"
-              style={{
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                backdropFilter: 'blur(10px)',
-              }}
-            >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: '#10B981',
-                  boxShadow: '0 0 8px rgba(16,185,129,0.5)',
-                }}
-              />
-              <span
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  color: 'rgba(255,255,255,0.9)',
-                }}
-              >
-                Sistema Activo
-              </span>
             </div>
           </div>
         </div>
@@ -188,6 +161,7 @@ export default function Login({ onLoginSuccess }) {
                     color: '#0F172A',
                   }}
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -214,6 +188,7 @@ export default function Login({ onLoginSuccess }) {
                     color: '#0F172A',
                   }}
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -237,17 +212,22 @@ export default function Login({ onLoginSuccess }) {
 
             <button
               type="submit"
+              disabled={loading}
               className="w-full h-14 rounded-xl transition-all hover:brightness-110 active:scale-[0.98] mt-6"
               style={{
-                background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5F7E 100%)',
+                background: loading 
+                  ? 'linear-gradient(135deg, #94A3B8 0%, #64748B 100%)' 
+                  : 'linear-gradient(135deg, #1E3A5F 0%, #2D5F7E 100%)',
                 color: 'white',
                 fontFamily: 'var(--font-display)',
                 fontWeight: 700,
                 fontSize: '15px',
-                boxShadow: '0 8px 24px rgba(45,95,126,0.3)',
+                boxShadow: loading ? 'none' : '0 8px 24px rgba(45,95,126,0.3)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
               }}
             >
-              Iniciar Sesión
+              {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </button>
           </form>
 
@@ -257,7 +237,9 @@ export default function Login({ onLoginSuccess }) {
                 fontFamily: 'var(--font-body)',
                 fontSize: '13px',
                 color: '#CBD5E1',
+                cursor: 'pointer',
               }}
+              onClick={() => alert('Contacta al administrador para restablecer tu contraseña')}
             >
               ¿Olvidaste tu contraseña?
             </span>

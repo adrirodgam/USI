@@ -9,6 +9,9 @@ const piecesRoutes = require('./routes/pieces')
 const certificatesRoutes = require('./routes/certificates')
 const usersRoutes = require('./routes/users')
 const checklistsRoutes = require('./routes/checklists')
+const dashboardRoutes = require('./routes/dashboard')
+
+
 
 app.use(cors()) 
 app.use(express.json())
@@ -20,6 +23,8 @@ app.use('/api/pieces', piecesRoutes)
 app.use('/api/certificates', certificatesRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/checklists', checklistsRoutes)
+app.use('/api/dashboard', dashboardRoutes);
+
 
 console.log('Certificates registered')
 

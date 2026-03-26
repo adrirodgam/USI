@@ -2,6 +2,7 @@ const express = require('express');
 const { z } = require('zod');
 const supabase = require('../services/supabase');
 const generateCertificate = require('../services/certificate');
+const { saveCertificate } = require('../services/smartsheet');
 
 const router = express.Router();
 
@@ -25,9 +26,23 @@ router.post('/', async (req, res) => {
         }
 
         data.signature_url = signatureData.signature_url;
-        console.log('signature_url encontrado:', signatureData.signature_url)
+        console.log('Signature URL found:', signatureData.signature_url);
 
         const certificateBuffer = await generateCertificate(data);
+
+        // Save to Smartsheet
+        const smartsheetResult = await saveCertificate(
+            {
+                inspector: data.inspector,
+                partNo: data.part_number,
+                drawingNo: data.drawing_no,
+                cliente: data.customer_name,
+                
+            },
+            certificateBuffer,
+            `COC_${data.part_number}.docx`
+        );
+        console.log('Saved to Smartsheet:', smartsheetResult);
 
         res.set({
             'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

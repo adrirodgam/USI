@@ -13,10 +13,10 @@ const navItems = [
     subtitle: "Resumen y métricas"
   },
   { 
-    label: "Clientes", 
+    label: "Certificate Of Conformance", 
     path: "/clientes", 
     icon: <Users size={18} />,
-    subtitle: "Gestión de clientes"
+    subtitle: "Generador de Certificados"
   },
   { 
     label: "NCR", 

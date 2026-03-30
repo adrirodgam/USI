@@ -144,7 +144,7 @@ export default function Piezas() {
   const [cocPiece, setCocPiece] = useState(null);
 
   const role             = localStorage.getItem('role');
-  const isInspectorOrAdmin = ['inspector', 'Inspector', 'Admin', 'admin'].includes(role);
+  const isInspectorOrAdmin = ['inspector', 'Inspector', 'Admin', 'admin', 'developer'].includes(role);
   const isOperador         = ['operador', 'Operador'].includes(role);
 
   useEffect(() => {

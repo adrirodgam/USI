@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const apiClient = axios.create({ 
-  baseURL: 'http://localhost:3000/api/auth' 
+  baseURL: `${import.meta.env.VITE_API_URL}/api/auth`
 })
 
 export const login = async (employee_id, password) => {

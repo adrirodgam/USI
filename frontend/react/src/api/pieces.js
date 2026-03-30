@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const apiClient = axios.create({ 
-  baseURL: 'http://localhost:3000/api/pieces' // Asegúrate que sea "pieces", no "places"
+  baseURL: `${import.meta.env.VITE_API_URL}/api/auth`
 })
 
 export const getPieces = async (customerId, token) => {

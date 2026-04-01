@@ -9,17 +9,17 @@ export function AppProvider({ children }) {
 
   // Load token from storage on mount
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
+    const savedToken = sessionStorage.getItem('token');
     if (savedToken) setToken(savedToken);
   }, []);
 
   const handleLoginSuccess = (newToken) => {
-    localStorage.setItem('token', newToken);
+    sessionStorage.setItem('token', newToken);
     setToken(newToken);
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    sessionStorage.clear();
     setToken(null);
     setCustomerId(null);
     setSelectedPiece(null);

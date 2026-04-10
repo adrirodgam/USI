@@ -33,19 +33,14 @@ const parseSmartsheetData = (sheet) => {
     });
 
     return {
-      id: row.id,
-      partNumber:     obj['No. de Parte']                        || '',
-      jobOrder:       obj['Job Order']                           || '',
-      quantity:       obj['Cantidad']                            || 0,
-      discrepancy:    obj['Discrepancia']                        || '',
-      area:           obj['Área donde se realizará el REWORK (POWDERCOAT, ASSEMBLY, SHEET METAL, WELDING, MACHINING, INCOMING)'] || '',
-      processDetails: obj['Detalles del Proceso']               || '',
+      partNumber:     obj['No. de Parte:']                        || '',
+      jobOrder:       obj['Job Order:']                           || '',
+      quantity:       obj['Cantidad:']                            || 0,
+      discrepancy:    obj['Discrepancia:']                        || '',
+      area:           obj['Area donde se Realizará el REWORK:']   || '',
+      processDetails: obj['Detalles del Proceso:']                || '',
       estimatedTime:  parseFloat(obj['Tiempo Estimado de Rework']) || 0,
-      status:         obj['Estado']                              || 'Pendiente',
-      registeredDate: obj['Fecha de interrupción del proceso']  || null,
-      areaAssignedDate: obj['Fecha Asignado']                   || null,
-      inReviewDate:   obj['Fecha Revisión']                     || null,
-      completedDate:  obj['Fecha Terminado']                    || null,
+      registeredDate: obj['Hora de interrupción del proceso:']    || null,
     };
   });
 };

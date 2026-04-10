@@ -1,10 +1,10 @@
+// backend/src/services/smartsheet.js
 const axios = require('axios')
  
 const SMARTSHEET_TOKEN = process.env.SMARTSHEET_TOKEN
 const BASE_URL = 'https://api.smartsheet.com/2.0'
 const WORKSPACE_ID = '8187746641569668';
  
-// Fetch sheet data including columns and rows
 async function getSheet(sheetId) {
   const response = await axios.get(`${BASE_URL}/sheets/${sheetId}`, {
     headers: { Authorization: `Bearer ${SMARTSHEET_TOKEN}` }
@@ -12,17 +12,13 @@ async function getSheet(sheetId) {
   return response.data
 }
  
-// Add a new row with operator name and initials
 async function registerOperator(sheetId, name, initial) {
   const sheet = await getSheet(sheetId)
- 
   const operatorCol = sheet.columns.find(c => c.title === 'Operador')
   const initialCol = sheet.columns.find(c => c.title === 'Inicial')
- 
   if (!operatorCol || !initialCol) {
     throw new Error('Required columns not found in sheet')
   }
- 
   await axios.post(`${BASE_URL}/sheets/${sheetId}/rows`,
     [{
       cells: [
@@ -39,7 +35,6 @@ async function registerOperator(sheetId, name, initial) {
   )
 }
 
-
 async function findFolderByName(workspaceId, folderName) {
   try {
     const response = await axios.get(`${BASE_URL}/workspaces/${workspaceId}/folders`, {
@@ -53,7 +48,6 @@ async function findFolderByName(workspaceId, folderName) {
     return null;
   }
 }
-
 
 async function createFolder(workspaceId, folderName) {
   try {
@@ -73,14 +67,11 @@ async function createFolder(workspaceId, folderName) {
   }
 }
 
-
-// ✅ FIXED: usar GET /folders/{id} en lugar de GET /folders/{id}/sheets
 async function findSheetByName(folderId, sheetName) {
   try {
     const response = await axios.get(`${BASE_URL}/folders/${folderId}`, {
       headers: { Authorization: `Bearer ${SMARTSHEET_TOKEN}` }
     });
-    // El contenido de la carpeta viene en response.data.sheets
     const sheets = response.data.sheets || [];
     const found = sheets.find(sheet => sheet.name === sheetName);
     return found ? found.id : null;
@@ -89,7 +80,6 @@ async function findSheetByName(folderId, sheetName) {
     return null;
   }
 }
-
 
 async function createSheet(folderId, sheetName) {
   try {
@@ -100,7 +90,6 @@ async function createSheet(folderId, sheetName) {
       { title: 'Cliente', type: 'TEXT_NUMBER' },
       { title: 'Fecha', type: 'DATE' }
     ];
-
     const response = await axios.post(`${BASE_URL}/folders/${folderId}/sheets`,
       { name: sheetName, columns },
       {
@@ -117,7 +106,6 @@ async function createSheet(folderId, sheetName) {
   }
 }
 
-
 async function getColumnIds(sheetId) {
   const sheet = await getSheet(sheetId);
   return {
@@ -129,18 +117,16 @@ async function getColumnIds(sheetId) {
   };
 }
 
-
 async function addCertificateRow(sheetId, data) {
   try {
     const columnIds = await getColumnIds(sheetId);
-    
-  const cells = [
-  { columnId: columnIds.inspector, value: data.inspector },
-  { columnId: columnIds.partNo, value: data.partNo },
-  { columnId: columnIds.drawingNo, value: data.drawingNo },
-  { columnId: columnIds.cliente, value: data.cliente },
-  { columnId: columnIds.fecha, value: data.fecha }
-  ].filter(cell => cell.columnId && cell.value !== undefined && cell.value !== null && cell.value !== '');
+    const cells = [
+      { columnId: columnIds.inspector, value: data.inspector },
+      { columnId: columnIds.partNo, value: data.partNo },
+      { columnId: columnIds.drawingNo, value: data.drawingNo },
+      { columnId: columnIds.cliente, value: data.cliente },
+      { columnId: columnIds.fecha, value: data.fecha }
+    ].filter(cell => cell.columnId && cell.value !== undefined && cell.value !== null && cell.value !== '');
 
     const response = await axios.post(`${BASE_URL}/sheets/${sheetId}/rows`,
       [{ cells }],
@@ -158,13 +144,11 @@ async function addCertificateRow(sheetId, data) {
   }
 }
 
-
 async function attachFileToRow(sheetId, rowId, fileBuffer, fileName) {
   try {
     const FormData = require('form-data');
     const form = new FormData();
     form.append('file', fileBuffer, { filename: fileName, contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-
     const response = await axios.post(
       `${BASE_URL}/sheets/${sheetId}/rows/${rowId}/attachments`,
       form,
@@ -182,31 +166,23 @@ async function attachFileToRow(sheetId, rowId, fileBuffer, fileName) {
   }
 }
 
-
 async function saveCertificate(certificateData, fileBuffer, fileName) {
   try {
     const now = new Date();
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const monthFolderName = `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
-    const daySheetName = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const daySheetName = now.toISOString().split('T')[0];
 
-    // Buscar o crear carpeta del mes
     let folderId = await findFolderByName(WORKSPACE_ID, monthFolderName);
     if (!folderId) {
-      console.log(`Folder "${monthFolderName}" not found, creating...`);
       folderId = await createFolder(WORKSPACE_ID, monthFolderName);
     }
-    console.log(`Using folder ID: ${folderId}`);
 
-    // Buscar o crear hoja del día
     let sheetId = await findSheetByName(folderId, daySheetName);
     if (!sheetId) {
-      console.log(`Sheet "${daySheetName}" not found, creating...`);
       sheetId = await createSheet(folderId, daySheetName);
     }
-    console.log(`Using sheet ID: ${sheetId}`);
 
-    
     const rowId = await addCertificateRow(sheetId, {
       inspector: certificateData.inspector,
       partNo: certificateData.partNo,
@@ -214,16 +190,39 @@ async function saveCertificate(certificateData, fileBuffer, fileName) {
       cliente: certificateData.cliente,
       fecha: now.toISOString().split('T')[0]
     });
-    console.log(`Row added with ID: ${rowId}`);
 
-  
     await attachFileToRow(sheetId, rowId, fileBuffer, fileName);
-    console.log(`File "${fileName}" attached to row`);
-
     return { success: true, folderId, sheetId, rowId };
   } catch (error) {
     console.error('Error saving certificate:', error);
     return { success: false, error: error.message };
+  }
+}
+
+// ← NUEVA FUNCIÓN
+async function updateRow(sheetId, rowId, status) {
+  try {
+    const sheet = await getSheet(sheetId);
+    const statusCol = sheet.columns.find(c => c.title === 'Estado');
+    if (!statusCol) {
+      throw new Error('Column "Estado" not found in sheet');
+    }
+    const response = await axios.put(`${BASE_URL}/sheets/${sheetId}/rows`,
+      [{
+        id: rowId,
+        cells: [{ columnId: statusCol.id, value: status }]
+      }],
+      {
+        headers: {
+          Authorization: `Bearer ${SMARTSHEET_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error updating row:', error.response?.data || error.message);
+    throw error;
   }
 }
 
@@ -236,5 +235,6 @@ module.exports = {
   createSheet,
   addCertificateRow,
   attachFileToRow,
-  saveCertificate
+  saveCertificate,
+  updateRow        
 };

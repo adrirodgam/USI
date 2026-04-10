@@ -1,6 +1,6 @@
 // frontend/src/components/Sidebar.jsx
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, Shield, UserCircle, Settings, BarChart3, ChevronLeft, ChevronRight, Package, FileCheck, ClipboardList, AlertTriangle, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Shield, UserCircle, Settings, BarChart3, ChevronLeft, ChevronRight, Package, FileCheck, ClipboardList, AlertTriangle, Calendar, RotateCcw } from 'lucide-react';
 import logoLibra from '../assets/libraLogo.png';
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -23,6 +23,12 @@ const navItems = [
     path: "/ncr", 
     icon: <AlertTriangle size={18} />,
     subtitle: "No conformidades"
+  },
+  { 
+    label: "ReWork", 
+    path: "/rework", 
+    icon: <RotateCcw size={18} />,
+    subtitle: "Re-Trabajos"
   },
   { 
     label: "Audit", 

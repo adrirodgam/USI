@@ -1,4 +1,4 @@
-
+//backend/src/service/dashboardService
 const supabase = require('../config/supabase'); // Ajusta la ruta según tu proyecto
 
 const dashboardService = {

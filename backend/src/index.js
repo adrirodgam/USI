@@ -10,7 +10,7 @@ const certificatesRoutes = require('./routes/certificates')
 const usersRoutes = require('./routes/users')
 const checklistsRoutes = require('./routes/checklists')
 const dashboardRoutes = require('./routes/dashboard')
-
+const reworkRoutes = require('./routes/rework')
 
 
 app.use(cors()) 
@@ -24,6 +24,7 @@ app.use('/api/certificates', certificatesRoutes)
 app.use('/api/users', usersRoutes)
 app.use('/api/checklists', checklistsRoutes)
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/rework', reworkRoutes)
 
 
 console.log('Certificates registered')

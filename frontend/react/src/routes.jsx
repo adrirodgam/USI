@@ -8,6 +8,7 @@ import Piezas from "./pages/Pieces";
 import GenerarCOC from "./pages/GenerateCOC";
 import Checklists from "./pages/Checklists";
 import ComingSoon from "./pages/ComingSoon";
+import ReWork from "./pages/ReWork";
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
       { path: "generar-coc", Component: GenerarCOC },
       { path: "checklists/:clientId", Component: Checklists },
       { path: "ncr", Component: ComingSoon },
+      { path: "rework", Component: ReWork},
       { path: "auditoria", Component: ComingSoon },
       { path: "analiticas", Component: ComingSoon },
       { path: "trazabilidad", Component: ComingSoon },

@@ -6,21 +6,27 @@ const path = require("path");
 const supabaseAdmin = require("./supabaseAdmin");
 
 async function generateCertificate(data) {
+  console.log('--- 🚀 INICIANDO GENERACIÓN ---');
+  console.time('Tiempo Total'); // Cronómetro principal
+
   console.log('Looking for template at:', path.resolve(__dirname, "../templates/template.docx"))
 
   let signatureBuffer = null
   if (data.signature_url) {
+    console.time('⏱️ Descarga Firma (Supabase)');
     const { data: signatureData, error } = await supabaseAdmin
       .storage
-      .from('Signatures') // Asegúrate de que el bucket en Supabase también se llame 'Signatures'
+      .from('Signatures') 
       .download(data.signature_url)
     
     if (!error && signatureData) {
       const arrayBuffer = await signatureData.arrayBuffer()
       signatureBuffer = Buffer.from(arrayBuffer)
       console.log('Signature downloaded, size:', signatureBuffer.length)
+      console.timeEnd('⏱️ Descarga Firma (Supabase)');
     } else {
       console.log('Could not download signature:', error)
+      console.timeEnd('⏱️ Descarga Firma (Supabase)');
     }
   }
 
@@ -35,10 +41,12 @@ async function generateCertificate(data) {
     }
   })
 
+  console.time('⏱️ Lectura Plantilla (Disco)');
   const content = fs.readFileSync(
     path.resolve(__dirname, "../templates/template.docx"),
     "binary"
   )
+  console.timeEnd('⏱️ Lectura Plantilla (Disco)');
 
   const zip = new PizZip(content)
 
@@ -52,6 +60,7 @@ async function generateCertificate(data) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const today = new Date()
 
+  console.time('⏱️ Renderizado Docx');
   doc.render({
     customer_name: data.customer_name,
     purchase_order: data.purchase_order,
@@ -71,7 +80,12 @@ async function generateCertificate(data) {
   })
 
   const buf = doc.toBuffer()
+  console.timeEnd('⏱️ Renderizado Docx');
+
   console.log('Buffer generated, size:', buf.length)
+  console.timeEnd('Tiempo Total');
+  console.log('--- ✅ FIN DEL PROCESO ---');
+  
   return buf
 }
 

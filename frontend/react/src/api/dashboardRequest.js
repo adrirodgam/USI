@@ -70,3 +70,13 @@ export const exportDashboardReport = async () => {
     throw error;
   }
 };
+
+export const searchPieces = async (term) => {
+    const res = await fetch(`/api/pieces/search?q=${term}`);
+    return res.json();
+};
+
+export const getPieceDetails = async (id) => {
+    const res = await fetch(`/api/pieces/${id}`);
+    return res.json();
+};

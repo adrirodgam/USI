@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { generateCOC } from '../api/certificates';
-import { getInspectors } from '../api/users';
 import TopBar from '../components/TopBar';
 import { useApp } from '../context/AppContext';
 import { Download, ArrowLeft, FileCheck } from 'lucide-react';
@@ -10,7 +9,7 @@ export default function GenerarCOC() {
   const { partNumber } = useParams();
   const location       = useLocation();
   const navigate       = useNavigate();
-  const { token }      = useApp();
+  const { token, user }      = useApp();
 
   // Piece comes as route state from Piezas.jsx
   const piece = location.state?.piece || {
@@ -26,14 +25,9 @@ export default function GenerarCOC() {
   const [quantity, setQuantity]   = useState('');
   const [sn, setSn]               = useState('');
   const [comments, setComments]   = useState(piece.default_comments || '');
-  const [inspector, setInspector] = useState('');
-  const [inspectors, setInspectors] = useState([]);
   const [generating, setGenerating] = useState(false);
   const [success, setSuccess]       = useState(false);
 
-  useEffect(() => {
-    getInspectors(token).then((data) => setInspectors(data || []));
-  }, [token]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -52,7 +46,7 @@ export default function GenerarCOC() {
       work_order:     wo,
       quantity:       quantity,
       comments:       comments || 'N/A',
-      inspector:      inspector,
+      inspector:      user.name,
       date:           new Date().toLocaleDateString('es-MX'),
     };
 

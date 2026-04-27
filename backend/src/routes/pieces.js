@@ -4,6 +4,21 @@ const router = express.Router();
 const supabase = require('../services/supabase');
 const verifyToken = require('../middleware/auth.middleware');
 
+// GET /api/pieces/search?q=término
+router.get('/search', verifyToken, async (req, res) => {
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ error: 'Falta el término de búsqueda' });
+
+    const { data, error } = await supabase
+        .from('pieces')
+        .select('*, customers(name)')
+        .ilike('part_number', `%${q}%`);
+
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(data);
+});
+
+
 // GET /api/pieces/:clientId - Get pieces by client
 router.get('/:clientId', verifyToken, async (req, res) => {
     const { clientId } = req.params;
@@ -61,5 +76,6 @@ router.post('/', verifyToken, async (req, res) => {
         res.status(500).json({ error: 'Server error: ' + err.message });
     }
 });
+
 
 module.exports = router;

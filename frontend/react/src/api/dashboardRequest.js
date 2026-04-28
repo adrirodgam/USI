@@ -80,3 +80,4 @@ export const getPieceDetails = async (id) => {
     const res = await fetch(`/api/pieces/${id}`);
     return res.json();
 };
+

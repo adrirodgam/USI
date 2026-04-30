@@ -1,21 +1,21 @@
-// backend/src/routes/users.js
+//backend/src/routes/users.js
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabase');
+const supabaseAdmin = require('../services/supabaseAdmin'); // For admin operations
 const verifyToken = require('../middleware/auth.middleware');
 const checkRole = require('../middleware/role.middleware');
 
-// Public endpoint (authenticated users only) – used by AppContext
+// Public endpoint – used by AppContext
 // GET /api/users?email=...
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { email } = req.query;
     if (email) {
-      // Fetch one user by email-derived employee_id
       const employeeId = email.split('@')[0];
       if (!employeeId) return res.status(400).json({ error: 'Invalid email format' });
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('users')
         .select('employee_id, name, signature_url')
         .eq('employee_id', employeeId)
@@ -25,12 +25,6 @@ router.get('/', verifyToken, async (req, res) => {
       if (!data) return res.status(404).json({ error: 'User not found' });
       return res.json(data);
     }
-
-    // If no email provided, return full list (only for admin/developer roles)
-    // This block will be protected by the generic route below if needed, but we can reuse this endpoint
-    // with checkRole for listing all users.
-    // To avoid confusion, we'll separate them: listing all users is a separate protected route.
-    // So here, if no email, we'll just return an error (bad request).
     return res.status(400).json({ error: 'Email parameter is required' });
   } catch (err) {
     console.error(err);
@@ -39,12 +33,9 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // Admin routes: list all users, create, update, delete (soft)
-// All these routes require authentication and role=developer or admin
-
-// GET /api/users/all – list all users (with checkRole)
 router.get('/all', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .select('employee_id, name, initial, role, active');
     if (error) return res.status(400).json({ error: error.message });
@@ -55,7 +46,6 @@ router.get('/all', verifyToken, checkRole('developer', 'admin'), async (req, res
   }
 });
 
-// POST /api/users – create new user
 router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { employee_id, name, initial, role } = req.body;
@@ -63,15 +53,14 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
       return res.status(400).json({ error: 'Missing required fields: employee_id, name, initial, role' });
     }
 
-    // Check if employee_id already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from('users')
       .select('employee_id')
       .eq('employee_id', employee_id)
       .single();
     if (existing) return res.status(409).json({ error: 'User already exists' });
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .insert([{ employee_id, name, initial, role, active: true }])
       .select('employee_id, name, initial, role, active')
@@ -85,7 +74,6 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
   }
 });
 
-// PUT /api/users/:employee_id – update user (name, role, active)
 router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { employee_id } = req.params;
@@ -100,7 +88,7 @@ router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async 
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .update(updates)
       .eq('employee_id', employee_id)
@@ -116,11 +104,10 @@ router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async 
   }
 });
 
-// DELETE /api/users/:employee_id – soft delete (deactivate)
 router.delete('/:employee_id', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { employee_id } = req.params;
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('users')
       .update({ active: false })
       .eq('employee_id', employee_id)

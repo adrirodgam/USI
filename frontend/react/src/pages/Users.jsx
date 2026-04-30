@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import {
   Users, UserPlus, UserCheck, UserX, Shield,
   Search, Filter, Download, Edit, Trash2, X,
-  Mail, Phone, Calendar, Briefcase, TrendingUp, AlertCircle
+  Mail, Briefcase, TrendingUp, AlertCircle
 } from 'lucide-react';
 
 // Helper to get role badge gradient
@@ -34,7 +34,7 @@ const getDepartmentColor = (department) => {
   return map[department] || '#64748B';
 };
 
-export default function Usuarios() {
+export default function Users() {
   const { token, user } = useApp();
   const navigate = useNavigate();
 
@@ -59,8 +59,25 @@ export default function Usuarios() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Guard: wait until user data is loaded from context
+  if (!user || !token) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'var(--font-body)',
+        color: '#94A3B8',
+        background: 'linear-gradient(135deg, #E0F2FE 0%, #DBEAFE 25%, #EDE9FE 75%, #FAE8FF 100%)'
+      }}>
+        Cargando perfil...
+      </div>
+    );
+  }
+
   // Check permission: only developer or admin can access
-  const role = localStorage.getItem('role') || user?.role || '';
+  const role = user.role || localStorage.getItem('role') || '';
   const isAdmin = ['developer', 'admin'].includes(role);
   if (!isAdmin) {
     navigate('/clientes');
@@ -74,16 +91,11 @@ export default function Usuarios() {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Map fields: backend returns employee_id, name, initial, role, active
       setUsers(res.data.map(u => ({
         ...u,
-        // Keep original fields, add computed ones if needed
         status: u.active ? 'Activo' : 'Inactivo',
-        department: u.department || 'Calidad', // placeholder if not present
+        department: u.department || 'Calidad',
         email: u.employee_id + '@libraind.com',
-        phone: '', // not stored yet
-        createdDate: '', // not stored yet
-        lastLogin: '', // not stored yet
       })));
     } catch (err) {
       if (err.response?.status === 401) { localStorage.clear(); window.location.reload(); }
@@ -195,7 +207,7 @@ export default function Usuarios() {
         );
       }
       closeModal();
-      fetchUsers(); // Refresh list
+      fetchUsers();
     } catch (err) {
       setError(err.response?.data?.error || 'Error al guardar el usuario.');
     } finally {
@@ -203,7 +215,7 @@ export default function Usuarios() {
     }
   };
 
-  // Toggle active status (quick action)
+  // Toggle active status
   const handleToggleStatus = async (user) => {
     try {
       await axios.put(
@@ -238,7 +250,7 @@ export default function Usuarios() {
     }
   };
 
-  // Inline styles consistent with project
+  // Inline styles
   const labelStyle = {
     display: 'block', fontFamily: 'var(--font-body)', fontWeight: 700,
     fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase',
@@ -307,7 +319,6 @@ export default function Usuarios() {
         {/* Filters */}
         <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-            {/* Search */}
             <div style={{ position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <input
@@ -318,7 +329,6 @@ export default function Usuarios() {
                 style={{ ...inputStyle, paddingLeft: '36px' }}
               />
             </div>
-            {/* Role filter */}
             <div style={{ position: 'relative' }}>
               <Filter size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <select
@@ -335,7 +345,6 @@ export default function Usuarios() {
                 <option value="operador">Operador</option>
               </select>
             </div>
-            {/* Department filter */}
             <div style={{ position: 'relative' }}>
               <Briefcase size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <select
@@ -351,7 +360,6 @@ export default function Usuarios() {
                 <option value="Operaciones">Operaciones</option>
               </select>
             </div>
-            {/* Status filter */}
             <div style={{ position: 'relative' }}>
               <AlertCircle size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <select
@@ -397,7 +405,7 @@ export default function Usuarios() {
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u, idx) => (
+                  filteredUsers.map((u) => (
                     <tr key={u.employee_id} className="border-b hover:bg-[#F8FAFF] transition-colors" style={{ borderColor: '#F8FAFC' }}>
                       <td className="px-6 py-4" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#1E3A5F', fontWeight: 600 }}>
                         {u.employee_id}

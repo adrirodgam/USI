@@ -1,14 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import TopBar from '../components/TopBar';
 import { useApp } from '../context/AppContext';
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, Search } from 'lucide-react';
 
 const resolveStatusStyle = (status) => {
   if (!status) return { bg: '#F3F4F6', color: '#6B7280', dot: '#6B7280', label: 'Activo' };
   const s = status.toLowerCase();
-  if (s === 'active'   || s === 'activo')   return { bg: '#ECFDF5', color: '#10B981', dot: '#10B981', label: 'Activo' };
+  if (s === 'active'   || s === 'activo')   return {
+    bg: '#ECFDF5',
+    color: '#10B981',
+    dot: '#10B981',
+    label: 'Activo',
+    // Green glow for active status
+    dotStyle: { boxShadow: '0 0 8px #10B981, 0 0 12px #10B981' }
+  };
   if (s === 'inactive' || s === 'inactivo') return { bg: '#F3F4F6', color: '#6B7280', dot: '#6B7280', label: 'Inactivo' };
   if (s === 'pending'  || s === 'pendiente')return { bg: '#FFFBEB', color: '#F59E0B', dot: '#F59E0B', label: 'Pendiente' };
   return { bg: '#ECFDF5', color: '#10B981', dot: '#10B981', label: status };
@@ -17,6 +24,7 @@ const resolveStatusStyle = (status) => {
 export default function Clientes() {
   const [list, setList]       = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch]   = useState(''); // Priority 2.1: search term
   const { token } = useApp();
   const navigate  = useNavigate();
 
@@ -35,6 +43,17 @@ export default function Clientes() {
   };
 
   useEffect(() => { fetchCustomers(); }, []);
+
+  // Priority 2.1: filter clients by name or code
+  const filteredList = useMemo(() => {
+    if (!search.trim()) return list;
+    const term = search.toLowerCase();
+    return list.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(term) ||
+        (c.code || String(c.id).substring(0, 3).toUpperCase()).toLowerCase().includes(term)
+    );
+  }, [list, search]);
 
   return (
     <div>
@@ -63,8 +82,28 @@ export default function Clientes() {
                 Listado de clientes
               </h3>
               <div className="px-2 py-1 rounded-full" style={{ backgroundColor: '#F1F5F9', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 600, color: '#64748B' }}>
-                {list.length}
+                {filteredList.length}
               </div>
+            </div>
+
+            {/* Priority 2.1: search input */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0' }}>
+              <Search size={14} style={{ color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Buscar cliente o código..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  color: '#0F172A',
+                  width: '220px',
+                }}
+              />
             </div>
           </div>
 
@@ -85,7 +124,7 @@ export default function Clientes() {
                   </tr>
                 </thead>
                 <tbody>
-                  {list.map((customer, index) => {
+                  {filteredList.map((customer, index) => {
                     const status = resolveStatusStyle(customer.status);
                     const code   = customer.code || String(customer.id).substring(0, 3).toUpperCase();
                     return (
@@ -103,7 +142,7 @@ export default function Clientes() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.dot }} />
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: status.dot, ...(status.dotStyle || {}) }} />
                             <span className="px-2 py-1 rounded-full" style={{ backgroundColor: status.bg, fontFamily: 'var(--font-body)', fontSize: '11px', fontWeight: 600, color: status.color }}>
                               {status.label}
                             </span>
@@ -121,6 +160,13 @@ export default function Clientes() {
                       </tr>
                     );
                   })}
+                  {filteredList.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan={5} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
+                        No se encontraron clientes.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

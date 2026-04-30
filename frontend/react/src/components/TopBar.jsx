@@ -1,4 +1,4 @@
-import { Search, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
 
 export default function TopBar({ title, breadcrumb, children }) {
   const today    = new Date().toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
@@ -21,17 +21,8 @@ export default function TopBar({ title, breadcrumb, children }) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Page-specific actions come first */}
         {children}
-
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="w-[220px] h-9 rounded-full px-4 pl-10 focus:outline-none"
-            style={{ backgroundColor: '#F1F5F9', fontFamily: 'var(--font-body)', fontSize: '13px', color: '#0F172A' }}
-          />
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#94A3B8' }} />
-        </div>
 
         <div className="flex items-center gap-2 h-9 px-3 rounded-full" style={{ backgroundColor: '#F1F5F9' }}>
           <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', fontWeight: 500, color: '#64748B' }}>
@@ -39,7 +30,7 @@ export default function TopBar({ title, breadcrumb, children }) {
           </span>
         </div>
 
-        <button className="relative w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
+        <button className="relative w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors" style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>
           <Bell size={18} style={{ color: '#64748B' }} />
           <div className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{ backgroundColor: '#EF4444' }} />
         </button>

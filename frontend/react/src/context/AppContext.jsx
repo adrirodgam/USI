@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 
 const AppContext = createContext();
 
@@ -13,14 +14,14 @@ export function AppProvider({ children }) {
     const savedToken = sessionStorage.getItem('token');
     if (savedToken) {
       setToken(savedToken);
-      decodeToken(savedToken);
-     }
+      decodeAndFetchUser(savedToken);
+    }
   }, []);
 
   const handleLoginSuccess = (newToken) => {
     sessionStorage.setItem('token', newToken);
     setToken(newToken);
-    decodeToken(newToken);
+    decodeAndFetchUser(newToken);
   };
 
   const handleLogout = () => {
@@ -31,14 +32,43 @@ export function AppProvider({ children }) {
     setSelectedPiece(null);
   };
 
-  const decodeToken = (token) => {
+  // Decode JWT and fetch full user profile from the backend
+  const decodeAndFetchUser = async (authToken) => {
     try {
-      const payload = token.split('.')[1];
+      const payload = authToken.split('.')[1];
       const decodedData = JSON.parse(atob(payload));
-      setUser(decodedData); 
-       }catch (err) {
-      console.error('Error decoding token:', err);
-      setUser(null);
+      const email = decodedData.email;
+      if (!email) {
+        throw new Error('JWT does not contain email');
+      }
+
+      // Fetch user record from public.users using the email-derived employee_id
+      const { data: userData } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/users?email=${encodeURIComponent(email)}`,
+        { headers: { Authorization: `Bearer ${authToken}` } }
+      );
+
+      // Fallback if API returned empty or unexpected
+      if (!userData) {
+        console.warn('No user data returned from API, setting user with email only');
+        setUser({ email });
+        return;
+      }
+
+      // Merge JWT payload with DB record (name, employee_id, signature_url)
+      setUser({
+        ...decodedData,
+        ...userData
+      });
+    } catch (err) {
+      console.error('Error in decodeAndFetchUser:', err);
+      // Try to salvage email from token so UI doesn't break
+      try {
+        const fallbackPayload = JSON.parse(atob(authToken.split('.')[1]));
+        setUser({ email: fallbackPayload.email || null });
+      } catch {
+        setUser(null);
+      }
     }
   };
 

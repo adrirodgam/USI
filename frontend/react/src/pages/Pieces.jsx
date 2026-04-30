@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getPieces, createPiece } from '../api/pieces';
 import TopBar from '../components/TopBar';
 import { useApp } from '../context/AppContext';
-import { FileCheck, ClipboardList, ArrowLeft, Plus, CheckCircle2, X } from 'lucide-react';
+import { FileCheck, ClipboardList, ArrowLeft, Plus, CheckCircle2, X, Search } from 'lucide-react';
 
 // ─── Add Piece Modal ──────────────────────────────────────────────────────────
 function AddPieceModal({ isOpen, onClose, onSave, customerId, token }) {
@@ -142,6 +142,7 @@ export default function Piezas() {
   const [loading, setLoading]   = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [cocPiece, setCocPiece] = useState(null);
+  const [search, setSearch]     = useState(''); // Priority 2.2: search term
 
   const role             = localStorage.getItem('role');
   const isInspectorOrAdmin = ['inspector', 'Inspector', 'Admin', 'admin', 'developer'].includes(role);
@@ -153,6 +154,15 @@ export default function Piezas() {
       setLoading(false);
     });
   }, [clientId]);
+
+  // Priority 2.2: filter pieces by part_number (case-insensitive)
+  const filteredPieces = useMemo(() => {
+    if (!search.trim()) return pieces;
+    const term = search.toLowerCase();
+    return pieces.filter((p) =>
+      p.part_number?.toLowerCase().includes(term)
+    );
+  }, [pieces, search]);
 
   // Called by AddPieceModal after successful save
   const handlePieceSaved = (newPiece) => {
@@ -189,12 +199,34 @@ export default function Piezas() {
       <div className="p-7">
         <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.06)' }}>
 
-          <div className="flex items-center px-6 py-4 border-b" style={{ borderColor: '#F8FAFC' }}>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', color: '#0F172A', margin: 0 }}>
-              Catálogo de piezas
-            </h3>
-            <div className="ml-3 px-2 py-1 rounded-full" style={{ backgroundColor: '#F1F5F9', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 600, color: '#64748B' }}>
-              {pieces.length}
+          <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: '#F8FAFC' }}>
+            <div className="flex items-center gap-3">
+              <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', color: '#0F172A', margin: 0 }}>
+                Catálogo de piezas
+              </h3>
+              <div className="px-2 py-1 rounded-full" style={{ backgroundColor: '#F1F5F9', fontFamily: 'var(--font-mono)', fontSize: '11px', fontWeight: 600, color: '#64748B' }}>
+                {filteredPieces.length}
+              </div>
+            </div>
+
+            {/* Priority 2.2: search input */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: '#F8FAFC', border: '1.5px solid #E2E8F0' }}>
+              <Search size={14} style={{ color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Buscar part number..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  color: '#0F172A',
+                  width: '200px',
+                }}
+              />
             </div>
           </div>
 
@@ -226,7 +258,7 @@ export default function Piezas() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pieces.map((piece, index) => (
+                  {filteredPieces.map((piece, index) => (
                     <tr key={piece.id} className="border-b transition-colors hover:bg-[#F8FAFF]" style={{ borderColor: '#F8FAFC' }}>
                       <td className="px-6 py-4" style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: '#94A3B8' }}>
                         {String(index + 1).padStart(2, '0')}
@@ -264,6 +296,13 @@ export default function Piezas() {
                       </td>
                     </tr>
                   ))}
+                  {filteredPieces.length === 0 && !loading && (
+                    <tr>
+                      <td colSpan={5} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
+                        No se encontraron piezas con ese part number.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

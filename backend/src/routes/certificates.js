@@ -17,12 +17,18 @@ router.post('/', async (req, res) => {
         const { data: signatureData, error } = await supabase
             .from('users')
             .select('signature_url')
-            .eq('name', data.inspector)
+            .eq('employee_id', data.employee_id)
             .single();
 
-        if (error || !signatureData) {
+        // Validate if there is a DB error, missing user, null signature, or 'EMPTY' signature
+        if (
+            error || 
+            !signatureData || 
+            !signatureData.signature_url || 
+            signatureData.signature_url === 'EMPTY'
+        ) {
             console.error('Error finding inspector:', error);
-            return res.status(404).json({ error: 'Inspector not found in database' });
+            return res.status(400).json({ error: 'No tienes una firma registrada. Contacta a Soporte.' });
         }
 
         data.signature_url = signatureData.signature_url;

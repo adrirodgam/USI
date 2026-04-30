@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { generateCOC } from '../api/certificates';
 import TopBar from '../components/TopBar';
@@ -11,7 +11,7 @@ export default function GenerarCOC() {
   const navigate       = useNavigate();
   const { token, user }      = useApp();
 
-  // Piece comes as route state from Piezas.jsx
+  // Piece data comes as route state from Piezas.jsx
   const piece = location.state?.piece || {
     part_number: partNumber,
     drawing_no: '',
@@ -19,19 +19,54 @@ export default function GenerarCOC() {
     customers: { name: '' },
   };
 
+  // Form states
   const [po, setPo]               = useState('');
   const [so, setSo]               = useState('');
   const [wo, setWo]               = useState('');
   const [quantity, setQuantity]   = useState('');
   const [sn, setSn]               = useState('');
   const [comments, setComments]   = useState(piece.default_comments || '');
+  
+  // UI states
   const [generating, setGenerating] = useState(false);
   const [success, setSuccess]       = useState(false);
+  const [error, setError]           = useState(null);
+  const [phase, setPhase]           = useState(0); // 0=idle, 1=generating doc, 2=saving Smartsheet, 3=downloading
 
+  // Priority 1.5: Ref to block double clicks immediately
+  const generatingRef = useRef(false);
+
+  // Priority 1.6: Refs to hold timer IDs so we can clear them
+  const timersRef = useRef([]);
+
+  // Start the 3-phase visual feedback sequence
+  const startPhaseSequence = () => {
+    // Clear any lingering timers first
+    stopPhaseSequence(false); // don't reset phase to 0 here
+    setPhase(1); // Immediately enter phase 1
+    const id1 = setTimeout(() => setPhase(2), 1500); // After 1.5s, simulate smartsheet save
+    const id2 = setTimeout(() => setPhase(3), 3000); // After 3s, simulate download prep
+    timersRef.current = [id1, id2];
+  };
+
+  // Stop the sequence and optionally reset phase to idle
+  const stopPhaseSequence = (resetPhase = true) => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    if (resetPhase) setPhase(0);
+  };
 
   const handleGenerate = async () => {
+    // Guard clause: exit if already generating
+    if (generatingRef.current) return;
+
+    // Lock immediately
+    generatingRef.current = true;
+
     setGenerating(true);
     setSuccess(false);
+    setError(null);
+    startPhaseSequence(); // <-- Priority 1.6: kick off visual phases
 
     const payload = {
       customer_name:  piece.customers?.name || '',
@@ -47,6 +82,7 @@ export default function GenerarCOC() {
       quantity:       quantity,
       comments:       comments || 'N/A',
       inspector:      user.name,
+      employee_id:    user.employee_id,
       date:           new Date().toLocaleDateString('es-MX'),
     };
 
@@ -56,7 +92,11 @@ export default function GenerarCOC() {
         const url = window.URL.createObjectURL(blob);
         const a   = document.createElement('a');
         a.href    = url;
-        a.download = `COC_${piece.part_number}.docx`;
+        
+        // Priority 2.4: Standardized filename with current date
+        const dateStr = new Date().toISOString().split('T')[0];
+        a.download = `COC_${piece.part_number}_${dateStr}.docx`;
+        
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -64,9 +104,21 @@ export default function GenerarCOC() {
       }
     } catch (err) {
       console.error('Error generating certificate:', err);
+      setError(err.message || 'Error generating certificate. Please try again.');
     } finally {
+      generatingRef.current = false; // Release lock
+      stopPhaseSequence(); // <-- Priority 1.6: clear timers, reset phase
       setGenerating(false);
     }
+  };
+
+  // Determine button text based on phase
+  const getButtonText = () => {
+    if (!generating) return 'Descargar COC (.docx)';
+    if (phase === 1) return 'Generando documento...';
+    if (phase === 2) return 'Guardando en Smartsheet...';
+    if (phase === 3) return 'Descargando...';
+    return 'Generando...'; // fallback
   };
 
   const inputStyle = {
@@ -75,6 +127,7 @@ export default function GenerarCOC() {
     fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#0F172A',
     boxSizing: 'border-box', outline: 'none',
   };
+
   const labelStyle = {
     display: 'block', fontFamily: 'var(--font-body)', fontWeight: 700,
     fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase',
@@ -97,7 +150,7 @@ export default function GenerarCOC() {
       <div className="p-7">
         <div className="flex gap-6" style={{ maxWidth: '900px' }}>
 
-          {/* Left: piece info */}
+          {/* Left Panel: Piece information and notifications */}
           <div className="w-72 flex-shrink-0">
             <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)', borderTop: '3px solid #06B6D4' }}>
               <div className="p-5">
@@ -121,6 +174,7 @@ export default function GenerarCOC() {
               </div>
             </div>
 
+            {/* Success Banner */}
             {success && (
               <div className="mt-4 p-4 rounded-2xl flex items-center gap-3" style={{ backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0' }}>
                 <FileCheck size={18} style={{ color: '#10B981' }} />
@@ -129,9 +183,18 @@ export default function GenerarCOC() {
                 </span>
               </div>
             )}
+
+            {/* Error Banner - Positioned inside left panel and fixed syntax errors */}
+            {error && (
+              <div className="mt-4 p-4 rounded-2xl flex items-center gap-3" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA'}}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#DC2626'}}> 
+                  {error}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Right: form */}
+          {/* Right Panel: Input form */}
           <div className="flex-1">
             <div className="rounded-2xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)' }}>
               <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '20px' }}>
@@ -162,31 +225,46 @@ export default function GenerarCOC() {
                 <textarea value={comments} onChange={(e) => setComments(e.target.value)} placeholder="N/A" rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'var(--font-body)' }} />
               </div>
 
+              {/* Fixed Inspector block - Replaced broken select with static verified text */}
               <div className="mb-6">
                 <label style={labelStyle}>Inspector Responsable</label>
-                <select value={inspector} onChange={(e) => setInspector(e.target.value)} style={inputStyle}>
-                  <option value="">Seleccionar inspector...</option>
-                  {inspectors.map((i) => (
-                    <option key={i.employee_id} value={i.name}>{i.name}</option>
-                  ))}
-                </select>
+                <p style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#0F172A',
+                }}>
+                  {user.name}
+                  <span style={{ 
+                    color: '#10B981', 
+                    marginLeft: '8px', 
+                    fontSize: '11px', 
+                    backgroundColor: '#F0FDF4', 
+                    padding: '2px 8px', 
+                    borderRadius: '12px',
+                    border: '1px solid #BBF7D0'
+                  }}>
+                    Verificado por USI
+                  </span>
+                </p>
               </div>
 
+              {/* Submit Button - Priority 1.6: dynamic text based on phase */}
               <button
                 onClick={handleGenerate}
-                disabled={generating || !inspector}
+                disabled={generating || !user.name}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all"
                 style={{
-                  background: (generating || !inspector) ? '#E2E8F0' : 'linear-gradient(135deg, #06B6D4, #0891B2)',
-                  color: (generating || !inspector) ? '#94A3B8' : 'white',
+                  background: (generating || !user.name) ? '#E2E8F0' : 'linear-gradient(135deg, #06B6D4, #0891B2)',
+                  color: (generating || !user.name) ? '#94A3B8' : 'white',
                   fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px',
-                  boxShadow: (generating || !inspector) ? 'none' : '0 4px 16px rgba(6,182,212,0.3)',
-                  cursor: (generating || !inspector) ? 'not-allowed' : 'pointer',
+                  boxShadow: (generating || !user.name) ? 'none' : '0 4px 16px rgba(6,182,212,0.3)',
+                  cursor: (generating || !user.name) ? 'not-allowed' : 'pointer',
                   border: 'none',
                 }}
               >
                 <Download size={18} />
-                {generating ? 'Generando...' : 'Descargar COC (.docx)'}
+                {getButtonText()}
               </button>
             </div>
           </div>

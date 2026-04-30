@@ -88,7 +88,8 @@ async function createSheet(folderId, sheetName) {
       { title: 'Part No', type: 'TEXT_NUMBER' },
       { title: 'Drawing No', type: 'TEXT_NUMBER' },
       { title: 'Cliente', type: 'TEXT_NUMBER' },
-      { title: 'Fecha', type: 'DATE' }
+      { title: 'Fecha', type: 'DATE' },
+      { title: 'Lote Total', type: 'TEXT_NUMBER' } // New column for lot total
     ];
     const response = await axios.post(`${BASE_URL}/folders/${folderId}/sheets`,
       { name: sheetName, columns },
@@ -113,7 +114,8 @@ async function getColumnIds(sheetId) {
     partNo: sheet.columns.find(c => c.title === 'Part No')?.id,
     drawingNo: sheet.columns.find(c => c.title === 'Drawing No')?.id,
     cliente: sheet.columns.find(c => c.title === 'Cliente')?.id,
-    fecha: sheet.columns.find(c => c.title === 'Fecha')?.id
+    fecha: sheet.columns.find(c => c.title === 'Fecha')?.id,
+    loteTotal: sheet.columns.find(c => c.title === 'Lote Total')?.id  // new column id
   };
 }
 
@@ -125,7 +127,9 @@ async function addCertificateRow(sheetId, data) {
       { columnId: columnIds.partNo, value: data.partNo },
       { columnId: columnIds.drawingNo, value: data.drawingNo },
       { columnId: columnIds.cliente, value: data.cliente },
-      { columnId: columnIds.fecha, value: data.fecha }
+      { columnId: columnIds.fecha, value: data.fecha },
+      // Include loteTotal only if provided and column exists
+      ...(data.loteTotal && columnIds.loteTotal ? [{ columnId: columnIds.loteTotal, value: data.loteTotal }] : [])
     ].filter(cell => cell.columnId && cell.value !== undefined && cell.value !== null && cell.value !== '');
 
     const response = await axios.post(`${BASE_URL}/sheets/${sheetId}/rows`,
@@ -188,7 +192,8 @@ async function saveCertificate(certificateData, fileBuffer, fileName) {
       partNo: certificateData.partNo,
       drawingNo: certificateData.drawingNo,
       cliente: certificateData.cliente,
-      fecha: now.toISOString().split('T')[0]
+      fecha: certificateData.fecha || now.toISOString().split('T')[0],
+      loteTotal: certificateData.loteTotal   // pass the lot total
     });
 
     await attachFileToRow(sheetId, rowId, fileBuffer, fileName);
@@ -199,7 +204,6 @@ async function saveCertificate(certificateData, fileBuffer, fileName) {
   }
 }
 
-// ← NUEVA FUNCIÓN
 async function updateRow(sheetId, rowId, status) {
   try {
     const sheet = await getSheet(sheetId);

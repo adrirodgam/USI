@@ -20,7 +20,6 @@ router.post('/', async (req, res) => {
             .eq('employee_id', data.employee_id)
             .single();
 
-        // Validate if there is a DB error, missing user, null signature, or 'EMPTY' signature
         if (
             error || 
             !signatureData || 
@@ -36,6 +35,13 @@ router.post('/', async (req, res) => {
 
         const certificateBuffer = await generateCertificate(data);
 
+        // Priority 2.4: standardized filename with current date (YYYY-MM-DD)
+        const dateStr = new Date().toISOString().split('T')[0];
+        const fileName = `COC_${data.part_number}_${dateStr}.docx`;
+
+        // Optional: total pieces in the order/lot (for Smartsheet)
+        const loteTotal = data.lote_total || '';
+
         // Save to Smartsheet
         const smartsheetResult = await saveCertificate(
             {
@@ -43,16 +49,17 @@ router.post('/', async (req, res) => {
                 partNo: data.part_number,
                 drawingNo: data.drawing_no,
                 cliente: data.customer_name,
-                
+                loteTotal: loteTotal,            // new field
+                fecha: dateStr
             },
             certificateBuffer,
-            `COC_${data.part_number}.docx`
+            fileName
         );
         console.log('Saved to Smartsheet:', smartsheetResult);
 
         res.set({
             'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'Content-Disposition': `attachment; filename=certificate_${data.customer_name}.docx`
+            'Content-Disposition': `attachment; filename=${fileName}`
         });
 
         return res.send(certificateBuffer);

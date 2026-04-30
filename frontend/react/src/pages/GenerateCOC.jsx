@@ -11,7 +11,6 @@ export default function GenerarCOC() {
   const navigate       = useNavigate();
   const { token, user }      = useApp();
 
-  // Piece data comes as route state from Piezas.jsx
   const piece = location.state?.piece || {
     part_number: partNumber,
     drawing_no: '',
@@ -19,37 +18,30 @@ export default function GenerarCOC() {
     customers: { name: '' },
   };
 
-  // Form states
   const [po, setPo]               = useState('');
   const [so, setSo]               = useState('');
   const [wo, setWo]               = useState('');
   const [quantity, setQuantity]   = useState('');
   const [sn, setSn]               = useState('');
   const [comments, setComments]   = useState(piece.default_comments || '');
+  const [loteTotal, setLoteTotal] = useState(''); // Optional: total pieces in the order/lot
   
-  // UI states
   const [generating, setGenerating] = useState(false);
   const [success, setSuccess]       = useState(false);
   const [error, setError]           = useState(null);
-  const [phase, setPhase]           = useState(0); // 0=idle, 1=generating doc, 2=saving Smartsheet, 3=downloading
+  const [phase, setPhase]           = useState(0);
 
-  // Priority 1.5: Ref to block double clicks immediately
   const generatingRef = useRef(false);
-
-  // Priority 1.6: Refs to hold timer IDs so we can clear them
   const timersRef = useRef([]);
 
-  // Start the 3-phase visual feedback sequence
   const startPhaseSequence = () => {
-    // Clear any lingering timers first
-    stopPhaseSequence(false); // don't reset phase to 0 here
-    setPhase(1); // Immediately enter phase 1
-    const id1 = setTimeout(() => setPhase(2), 1500); // After 1.5s, simulate smartsheet save
-    const id2 = setTimeout(() => setPhase(3), 3000); // After 3s, simulate download prep
+    stopPhaseSequence(false);
+    setPhase(1);
+    const id1 = setTimeout(() => setPhase(2), 1500);
+    const id2 = setTimeout(() => setPhase(3), 3000);
     timersRef.current = [id1, id2];
   };
 
-  // Stop the sequence and optionally reset phase to idle
   const stopPhaseSequence = (resetPhase = true) => {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
@@ -57,16 +49,12 @@ export default function GenerarCOC() {
   };
 
   const handleGenerate = async () => {
-    // Guard clause: exit if already generating
     if (generatingRef.current) return;
-
-    // Lock immediately
     generatingRef.current = true;
-
     setGenerating(true);
     setSuccess(false);
     setError(null);
-    startPhaseSequence(); // <-- Priority 1.6: kick off visual phases
+    startPhaseSequence();
 
     const payload = {
       customer_name:  piece.customers?.name || '',
@@ -84,6 +72,7 @@ export default function GenerarCOC() {
       inspector:      user.name,
       employee_id:    user.employee_id,
       date:           new Date().toLocaleDateString('es-MX'),
+      lote_total:     loteTotal || '', // Optional, for Smartsheet
     };
 
     try {
@@ -92,11 +81,8 @@ export default function GenerarCOC() {
         const url = window.URL.createObjectURL(blob);
         const a   = document.createElement('a');
         a.href    = url;
-        
-        // Priority 2.4: Standardized filename with current date
         const dateStr = new Date().toISOString().split('T')[0];
         a.download = `COC_${piece.part_number}_${dateStr}.docx`;
-        
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -106,19 +92,18 @@ export default function GenerarCOC() {
       console.error('Error generating certificate:', err);
       setError(err.message || 'Error generating certificate. Please try again.');
     } finally {
-      generatingRef.current = false; // Release lock
-      stopPhaseSequence(); // <-- Priority 1.6: clear timers, reset phase
+      generatingRef.current = false;
+      stopPhaseSequence();
       setGenerating(false);
     }
   };
 
-  // Determine button text based on phase
   const getButtonText = () => {
     if (!generating) return 'Descargar COC (.docx)';
     if (phase === 1) return 'Generando documento...';
     if (phase === 2) return 'Guardando en Smartsheet...';
     if (phase === 3) return 'Descargando...';
-    return 'Generando...'; // fallback
+    return 'Generando...';
   };
 
   const inputStyle = {
@@ -150,7 +135,7 @@ export default function GenerarCOC() {
       <div className="p-7">
         <div className="flex gap-6" style={{ maxWidth: '900px' }}>
 
-          {/* Left Panel: Piece information and notifications */}
+          {/* Left Panel */}
           <div className="w-72 flex-shrink-0">
             <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)', borderTop: '3px solid #06B6D4' }}>
               <div className="p-5">
@@ -174,7 +159,6 @@ export default function GenerarCOC() {
               </div>
             </div>
 
-            {/* Success Banner */}
             {success && (
               <div className="mt-4 p-4 rounded-2xl flex items-center gap-3" style={{ backgroundColor: '#ECFDF5', border: '1px solid #A7F3D0' }}>
                 <FileCheck size={18} style={{ color: '#10B981' }} />
@@ -184,7 +168,6 @@ export default function GenerarCOC() {
               </div>
             )}
 
-            {/* Error Banner - Positioned inside left panel and fixed syntax errors */}
             {error && (
               <div className="mt-4 p-4 rounded-2xl flex items-center gap-3" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA'}}>
                 <span style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#DC2626'}}> 
@@ -194,7 +177,7 @@ export default function GenerarCOC() {
             )}
           </div>
 
-          {/* Right Panel: Input form */}
+          {/* Right Panel */}
           <div className="flex-1">
             <div className="rounded-2xl p-6" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)' }}>
               <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '20px' }}>
@@ -215,6 +198,18 @@ export default function GenerarCOC() {
                 ))}
               </div>
 
+              {/* Lote Total field */}
+              <div className="mb-4">
+                <label style={labelStyle}>Total de piezas en el pedido (opcional)</label>
+                <input
+                  type="text"
+                  value={loteTotal}
+                  onChange={(e) => setLoteTotal(e.target.value)}
+                  placeholder="Ej: 50"
+                  style={inputStyle}
+                />
+              </div>
+
               <div className="mb-4">
                 <label style={labelStyle}>Números de Serie (S/N)</label>
                 <input type="text" value={sn} onChange={(e) => setSn(e.target.value)} placeholder="N/A" style={inputStyle} />
@@ -225,7 +220,6 @@ export default function GenerarCOC() {
                 <textarea value={comments} onChange={(e) => setComments(e.target.value)} placeholder="N/A" rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'var(--font-body)' }} />
               </div>
 
-              {/* Fixed Inspector block - Replaced broken select with static verified text */}
               <div className="mb-6">
                 <label style={labelStyle}>Inspector Responsable</label>
                 <p style={{
@@ -249,7 +243,6 @@ export default function GenerarCOC() {
                 </p>
               </div>
 
-              {/* Submit Button - Priority 1.6: dynamic text based on phase */}
               <button
                 onClick={handleGenerate}
                 disabled={generating || !user.name}

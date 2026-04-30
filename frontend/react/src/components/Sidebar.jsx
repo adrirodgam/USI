@@ -52,7 +52,8 @@ const navItems = [
     label: "Users", 
     path: "/usuarios", 
     icon: <UserCircle size={18} />,
-    subtitle: "Gestión de usuarios"
+    subtitle: "Gestión de usuarios",
+    requiredRole: ['developer', 'admin']
   },
   {
     label: "Settings",
@@ -156,8 +157,9 @@ export default function Sidebar({ onCollapseChange, isCollapsed: externalCollaps
 
         {/* Navigation */}
         <nav className="flex-1 px-5">
-          {navItems.map((item) => {
-            // Verificar si la ruta es activa
+          {navItems
+            .filter(item => !item.requiredRole || item.requiredRole.includes(userRole))
+            .map((item) => {
             const isActive = 
               location.pathname === item.path || 
               (item.path !== '/' && location.pathname.startsWith(item.path));

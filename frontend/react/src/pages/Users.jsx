@@ -107,7 +107,9 @@ export default function Users() {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { 
+  if (token) fetchUsers(); 
+  }, [token]);
 
   // KPIs from real data
   const totalUsers = users.length;

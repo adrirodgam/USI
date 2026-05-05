@@ -55,6 +55,7 @@ export default function Users() {
     role: 'inspector',
     department: 'Calidad',
     active: true,
+    email: '', // Optional contact email
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -91,11 +92,12 @@ export default function Users() {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      // Map fields for UI
       setUsers(res.data.map(u => ({
         ...u,
         status: u.active ? 'Activo' : 'Inactivo',
         department: u.department || 'Calidad',
-        email: u.employee_id + '@libraind.com',
+        contactEmail: u.email || null, // Contact email from DB
       })));
     } catch (err) {
       if (err.response?.status === 401) { localStorage.clear(); window.location.reload(); }
@@ -126,7 +128,7 @@ export default function Users() {
     return users.filter(u => {
       const nameMatch = u.name?.toLowerCase().includes(searchTerm.toLowerCase());
       const idMatch = u.employee_id?.toLowerCase().includes(searchTerm.toLowerCase());
-      const emailMatch = (u.employee_id + '@libraind.com').toLowerCase().includes(searchTerm.toLowerCase());
+      const emailMatch = (u.contactEmail || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesSearch = nameMatch || idMatch || emailMatch;
       const matchesRole = filterRole === 'Todos' || u.role === filterRole;
       const matchesActive = filterActive === 'Todos' || u.status === filterActive;
@@ -142,7 +144,7 @@ export default function Users() {
       ...filteredUsers.map(u => [
         u.employee_id,
         u.name,
-        u.employee_id + '@libraind.com',
+        u.contactEmail || '',   // Use contact email
         u.role,
         u.department || '',
         u.status,
@@ -158,7 +160,15 @@ export default function Users() {
   // Modal handlers
   const openCreateModal = () => {
     setModalMode('create');
-    setForm({ employee_id: '', name: '', initial: '', role: 'inspector', department: 'Calidad', active: true });
+    setForm({
+      employee_id: '',
+      name: '',
+      initial: '',
+      role: 'inspector',
+      department: 'Calidad',
+      active: true,
+      email: '', // Reset contact email
+    });
     setError('');
     setShowModal(true);
   };
@@ -173,6 +183,7 @@ export default function Users() {
       role: user.role,
       department: user.department || 'Calidad',
       active: user.status === 'Activo' ? true : false,
+      email: user.contactEmail || '', // Load contact email
     });
     setError('');
     setShowModal(true);
@@ -196,13 +207,13 @@ export default function Users() {
       if (modalMode === 'create') {
         await axios.post(
           `${import.meta.env.VITE_API_URL}/api/users`,
-          form,
+          form, // Includes email (optional)
           { headers: { Authorization: `Bearer ${token}` } }
         );
       } else {
         await axios.put(
           `${import.meta.env.VITE_API_URL}/api/users/${selectedUser.employee_id}`,
-          { name: form.name, role: form.role, active: form.active },
+          { name: form.name, role: form.role, active: form.active, email: form.email },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
@@ -384,7 +395,7 @@ export default function Users() {
             <table className="w-full">
               <thead>
                 <tr style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5F7E 100%)' }}>
-                  {['Employee ID', 'Usuario', 'Rol', 'Departamento', 'Estado', 'Acciones'].map(col => (
+                  {['Employee ID', 'Usuario', 'Email', 'Rol', 'Departamento', 'Estado', 'Acciones'].map(col => (
                     <th key={col} className="text-left px-6 py-3" style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '10px', color: 'white', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                       {col}
                     </th>
@@ -394,13 +405,13 @@ export default function Users() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
+                    <td colSpan={7} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
                       Cargando usuarios...
                     </td>
                   </tr>
                 ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
+                    <td colSpan={7} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
                       No se encontraron usuarios.
                     </td>
                   </tr>
@@ -412,8 +423,10 @@ export default function Users() {
                       </td>
                       <td className="px-6 py-4">
                         <div style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>{u.name}</div>
+                      </td>
+                      <td className="px-6 py-4">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'var(--font-body)', fontSize: '11px', color: '#64748B' }}>
-                          <Mail size={12} /> {u.employee_id}@libraind.com
+                          <Mail size={12} /> {u.contactEmail || '—'}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -537,6 +550,16 @@ export default function Users() {
                 <div>
                   <label style={labelStyle}>Iniciales *</label>
                   <input type="text" value={form.initial} onChange={(e) => setForm({ ...form, initial: e.target.value })} style={inputStyle} placeholder="Ej: RG" maxLength={3} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Correo de contacto (opcional)</label>
+                  <input
+                    type="email"
+                    value={form.email || ''}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    style={inputStyle}
+                    placeholder="ej: maria.garcia@libraind.com"
+                  />
                 </div>
                 <div>
                   <label style={labelStyle}>Rol *</label>

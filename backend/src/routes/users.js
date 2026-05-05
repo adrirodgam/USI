@@ -1,13 +1,12 @@
-//backend/src/routes/users.js
+// backend/src/routes/users.js
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabase');
-const supabaseAdmin = require('../services/supabaseAdmin'); // For admin operations
+const supabaseAdmin = require('../services/supabaseAdmin');
 const verifyToken = require('../middleware/auth.middleware');
 const checkRole = require('../middleware/role.middleware');
 
-// Public endpoint – used by AppContext
-// GET /api/users?email=...
+// GET /api/users?email=... (used by AppContext)
 router.get('/', verifyToken, async (req, res) => {
   try {
     const { email } = req.query;
@@ -17,7 +16,7 @@ router.get('/', verifyToken, async (req, res) => {
 
       const { data, error } = await supabaseAdmin
         .from('users')
-        .select('employee_id, name, signature_url')
+        .select('employee_id, name, signature_url, email')
         .eq('employee_id', employeeId)
         .single();
 
@@ -32,12 +31,12 @@ router.get('/', verifyToken, async (req, res) => {
   }
 });
 
-// Admin routes: list all users, create, update, delete (soft)
+// GET /api/users/all – list all users (admin/developer)
 router.get('/all', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('users')
-      .select('employee_id, name, initial, role, active');
+      .select('employee_id, name, initial, role, active, email');
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
   } catch (err) {
@@ -46,13 +45,15 @@ router.get('/all', verifyToken, checkRole('developer', 'admin'), async (req, res
   }
 });
 
+// POST /api/users – create new user (also in Auth)
 router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
-    const { employee_id, name, initial, role } = req.body;
+    const { employee_id, name, initial, role, email } = req.body; // email is optional contact email
     if (!employee_id || !name || !initial || !role) {
       return res.status(400).json({ error: 'Missing required fields: employee_id, name, initial, role' });
     }
 
+    // Check if employee_id already exists in public.users
     const { data: existing } = await supabaseAdmin
       .from('users')
       .select('employee_id')
@@ -60,13 +61,43 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
       .single();
     if (existing) return res.status(409).json({ error: 'User already exists' });
 
+    // Create user in Supabase Auth (login email = employee_id@libraind.com)
+    const loginEmail = `${employee_id}@libraind.com`;
+    const temporaryPassword = 'Usi2026!'; // can be changed later
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: loginEmail,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: { name, role }
+    });
+
+    if (authError || !authUser) {
+      console.error('Auth creation error:', authError);
+      return res.status(500).json({ error: 'Failed to create login account' });
+    }
+
+    // Insert into public.users with optional contact email
+    const newUser = {
+      employee_id,
+      name,
+      initial,
+      role,
+      active: true,
+      email: email || null, // contact email (optional)
+    };
+
     const { data, error } = await supabaseAdmin
       .from('users')
-      .insert([{ employee_id, name, initial, role, active: true }])
-      .select('employee_id, name, initial, role, active')
+      .insert([newUser])
+      .select('employee_id, name, initial, role, active, email')
       .single();
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (error) {
+      // Rollback: delete the auth user if insert fails
+      await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
+      return res.status(400).json({ error: error.message });
+    }
+
     res.status(201).json(data);
   } catch (err) {
     console.error(err);
@@ -74,15 +105,17 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
   }
 });
 
+// PUT /api/users/:employee_id – update user
 router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { employee_id } = req.params;
-    const { name, role, active } = req.body;
+    const { name, role, active, email } = req.body;
 
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) updates.role = role;
     if (active !== undefined) updates.active = active;
+    if (email !== undefined) updates.email = email; // allow updating contact email
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -92,7 +125,7 @@ router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async 
       .from('users')
       .update(updates)
       .eq('employee_id', employee_id)
-      .select('employee_id, name, initial, role, active')
+      .select('employee_id, name, initial, role, active, email')
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
@@ -104,6 +137,7 @@ router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async 
   }
 });
 
+// DELETE /api/users/:employee_id – soft delete
 router.delete('/:employee_id', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { employee_id } = req.params;

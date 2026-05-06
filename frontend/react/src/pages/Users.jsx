@@ -4,7 +4,21 @@ import axios from 'axios';
 import TopBar from '../components/TopBar';
 import { useApp } from '../context/AppContext';
 import {
-  Users as UsersIcon, UserPlus, UserCheck, UserX, Shield, ...
+  Users as UsersIcon,
+  UserPlus,
+  UserCheck,
+  UserX,
+  Shield,
+  Download,
+  Search,
+  Filter,
+  Briefcase,
+  AlertCircle,
+  Mail,
+  Edit,
+  Trash2,
+  X,
+  TrendingUp
 } from 'lucide-react';
 
 // Helper to get role badge gradient

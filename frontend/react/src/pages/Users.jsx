@@ -92,10 +92,12 @@ export default function Users() {
   // Check permission: only developer or admin can access
   const role = user.role || localStorage.getItem('role') || '';
   const isAdmin = ['developer', 'admin'].includes(role);
+
+  useEffect(() => {
   if (!isAdmin) {
     navigate('/clientes');
-    return null;
   }
+  }, [isAdmin, navigate]);
 
   // Fetch users from backend
   const fetchUsers = async () => {

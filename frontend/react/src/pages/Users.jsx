@@ -97,7 +97,7 @@ export default function Users() {
   if (!isAdmin) {
     navigate('/clientes');
   }
-  }, [isAdmin, navigate]);
+}, [isAdmin, navigate]);
 
   // Fetch users from backend
   const fetchUsers = async () => {

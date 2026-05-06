@@ -4,24 +4,12 @@ import axios from 'axios';
 import TopBar from '../components/TopBar';
 import { useApp } from '../context/AppContext';
 import {
-  Users as UsersIcon,
-  UserPlus,
-  UserCheck,
-  UserX,
-  Shield,
-  Download,
-  Search,
-  Filter,
-  Briefcase,
-  AlertCircle,
-  Mail,
-  Edit,
-  Trash2,
-  X,
-  TrendingUp
+  Users, UserPlus, UserCheck, UserX, Shield,
+  Search, Filter, Download, Edit, Trash2, X,
+  Mail, Briefcase, TrendingUp, AlertCircle
 } from 'lucide-react';
 
-// Helpers
+// Helper to get role badge gradient
 const getRoleBadgeColor = (role) => {
   const map = {
     developer: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
@@ -30,11 +18,11 @@ const getRoleBadgeColor = (role) => {
     supervisor: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
     inspector: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
     operador: 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
-    ingeniero: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
   };
-  return map[role] || map.operador;
+  return map[role] || 'linear-gradient(135deg, #64748B 0%, #475569 100%)';
 };
 
+// Helper for department color
 const getDepartmentColor = (department) => {
   const map = {
     Calidad: '#10B981',
@@ -46,14 +34,9 @@ const getDepartmentColor = (department) => {
   return map[department] || '#64748B';
 };
 
-const normalize = (str) => (str || '').trim().toLowerCase();
-
 export default function Users() {
   const { token, user } = useApp();
   const navigate = useNavigate();
-
-  // Wait until user is ready
-  const [userReady, setUserReady] = useState(false);
 
   // State
   const [users, setUsers] = useState([]);
@@ -63,9 +46,8 @@ export default function Users() {
   const [filterActive, setFilterActive] = useState('Todos');
   const [filterDepartment, setFilterDepartment] = useState('Todos');
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState('create');
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
   const [selectedUser, setSelectedUser] = useState(null);
-
   const [form, setForm] = useState({
     employee_id: '',
     name: '',
@@ -73,32 +55,13 @@ export default function Users() {
     role: 'inspector',
     department: 'Calidad',
     active: true,
-    email: '',
+    email: '', // Optional contact email
   });
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Detect when user is ready
-  useEffect(() => {
-    if (user && user.role) {
-      setUserReady(true);
-    }
-  }, [user]);
-
-  // Safe redirect
-  useEffect(() => {
-    if (!userReady) return;
-
-    const role = (user?.role || '').toLowerCase();
-
-    if (!['developer', 'admin', 'gerente'].includes(role)) {
-      navigate('/clientes', { replace: true });
-    }
-  }, [userReady, user, navigate]);
-
-  // Guard before UI
-  if (!userReady || !token) {
+  // Guard: wait until user data is loaded from context
+  if (!user || !token) {
     return (
       <div style={{
         minHeight: '100vh',
@@ -114,143 +77,202 @@ export default function Users() {
     );
   }
 
-  // Safe role
-  const safeRole = (user?.role || '').toLowerCase();
-  const isAdmin = ['developer', 'admin'].includes(safeRole);
-  const isGerente = safeRole === 'gerente';
+  // Check permission: only developer or admin can access
+  const role = user.role || localStorage.getItem('role') || '';
+  const isAdmin = ['developer', 'admin'].includes(role);
+  if (!isAdmin) {
+    navigate('/clientes');
+    return null;
+  }
 
-  // Fetch users
+  // Fetch users from backend
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      setUsers(res.data.map(u => {
-        const authEmail = u.email || '';
-
-        const derivedId = authEmail.includes('@libraind.com')
-          ? authEmail.replace('@libraind.com', '')
-          : (u.employee_id || '');
-
-        return {
-          employee_id: derivedId,
-          name: u.name,
-          initial: u.initial,
-          role: u.role,
-          department: u.department || 'Calidad',
-          active: u.active,
-          status: u.active ? 'Activo' : 'Inactivo',
-          contactEmail: u.contact_email || null,
-        };
-      }));
+      // Map fields for UI
+      setUsers(res.data.map(u => ({
+        ...u,
+        status: u.active ? 'Activo' : 'Inactivo',
+        department: u.department || 'Calidad',
+        contactEmail: u.email || null, // Contact email from DB
+      })));
     } catch (err) {
-      if (err.response?.status === 401) {
-        localStorage.clear();
-        window.location.reload();
-      }
+      if (err.response?.status === 401) { localStorage.clear(); window.location.reload(); }
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (token) fetchUsers();
-  }, [token]);
+  useEffect(() => { fetchUsers(); }, []);
 
-  // KPIs
+  // KPIs from real data
   const totalUsers = users.length;
-  const activeUsers = users.filter(u => u.active).length;
+  const activeUsers = users.filter(u => u.status === 'Activo').length;
   const inactiveUsers = totalUsers - activeUsers;
+  const adminCount = users.filter(u => u.role === 'admin' || u.role === 'developer').length;
+  const supervisorCount = users.filter(u => u.role === 'supervisor').length;
 
   const kpiCards = [
-    {
-      label: 'Total Usuarios',
-      value: totalUsers.toString(),
-      icon: <UsersIcon size={24} />,
-      bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-      trendValue: `${totalUsers} registrados`,
-      trendPositive: null
-    },
-    {
-      label: 'Activos',
-      value: activeUsers.toString(),
-      icon: <UserCheck size={24} />,
-      bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-      trendValue: `${((activeUsers / totalUsers) * 100 || 0).toFixed(0)}%`,
-      trendPositive: true
-    },
-    {
-      label: 'Inactivos',
-      value: inactiveUsers.toString(),
-      icon: <UserX size={24} />,
-      bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
-      trendValue: `${((inactiveUsers / totalUsers) * 100 || 0).toFixed(0)}%`,
-      trendPositive: false
-    }
+    { label: 'Total Usuarios', value: totalUsers.toString(), icon: <Users size={24} />, bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', trendValue: `${totalUsers} registrados`, trendPositive: null },
+    { label: 'Activos', value: activeUsers.toString(), icon: <UserCheck size={24} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', trendValue: `${((activeUsers / totalUsers) * 100 || 0).toFixed(0)}%`, trendPositive: true },
+    { label: 'Inactivos', value: inactiveUsers.toString(), icon: <UserX size={24} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', trendValue: `${((inactiveUsers / totalUsers) * 100 || 0).toFixed(0)}%`, trendPositive: false },
+    { label: 'Admin / Superv.', value: `${adminCount}/${supervisorCount}`, icon: <Shield size={24} />, bgGradient: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)', trendValue: 'Admin + Super', trendPositive: null },
   ];
 
-  // Filtering
+  // Filter logic
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
-      const search = searchTerm.toLowerCase();
-
-      const matchesSearch =
-        (u.name || '').toLowerCase().includes(search) ||
-        String(u.employee_id || '').toLowerCase().includes(search) ||
-        (u.contactEmail || '').toLowerCase().includes(search);
-
+      const nameMatch = u.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const idMatch = u.employee_id?.toLowerCase().includes(searchTerm.toLowerCase());
+      const emailMatch = (u.contactEmail || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = nameMatch || idMatch || emailMatch;
       const matchesRole = filterRole === 'Todos' || u.role === filterRole;
       const matchesActive = filterActive === 'Todos' || u.status === filterActive;
-
-      const matchesDept =
-        filterDepartment === 'Todos' ||
-        normalize(u.department) === normalize(filterDepartment);
-
-      const matchesGerenteDept = isGerente
-        ? normalize(u.department) === normalize(user.department)
-        : true;
-
-      return matchesSearch && matchesRole && matchesActive && matchesDept && matchesGerenteDept;
+      const matchesDept = filterDepartment === 'Todos' || u.department === filterDepartment;
+      return matchesSearch && matchesRole && matchesActive && matchesDept;
     });
-  }, [
-    users,
-    searchTerm,
-    filterRole,
-    filterActive,
-    filterDepartment,
-    isGerente,
-    user
-  ]);
+  }, [users, searchTerm, filterRole, filterActive, filterDepartment]);
+
+  // Export CSV
+  const handleExport = () => {
+    const csv = [
+      ['Employee ID', 'Nombre', 'Email', 'Rol', 'Departamento', 'Estado'],
+      ...filteredUsers.map(u => [
+        u.employee_id,
+        u.name,
+        u.contactEmail || '',   // Use contact email
+        u.role,
+        u.department || '',
+        u.status,
+      ])
+    ].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `usuarios_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  // Modal handlers
+  const openCreateModal = () => {
+    setModalMode('create');
+    setForm({
+      employee_id: '',
+      name: '',
+      initial: '',
+      role: 'inspector',
+      department: 'Calidad',
+      active: true,
+      email: '', // Reset contact email
+    });
+    setError('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (user) => {
+    setModalMode('edit');
+    setSelectedUser(user);
+    setForm({
+      employee_id: user.employee_id,
+      name: user.name,
+      initial: user.initial || '',
+      role: user.role,
+      department: user.department || 'Calidad',
+      active: user.status === 'Activo' ? true : false,
+      email: user.contactEmail || '', // Load contact email
+    });
+    setError('');
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedUser(null);
+  };
+
+  // Form submit (create or update)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.employee_id || !form.name || !form.initial || !form.role) {
+      setError('Todos los campos marcados con * son obligatorios.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      if (modalMode === 'create') {
+        await axios.post(
+          `${import.meta.env.VITE_API_URL}/api/users`,
+          form, // Includes email (optional)
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      } else {
+        await axios.put(
+          `${import.meta.env.VITE_API_URL}/api/users/${selectedUser.employee_id}`,
+          { name: form.name, role: form.role, active: form.active, email: form.email },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      }
+      closeModal();
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar el usuario.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Toggle active status
   const handleToggleStatus = async (user) => {
     try {
       await axios.put(
         `${import.meta.env.VITE_API_URL}/api/users/${user.employee_id}`,
-        { active: !user.active },
+        { active: user.status !== 'Activo' },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      setUsers(prev =>
-        prev.map(u =>
-          u.employee_id === user.employee_id
-            ? {
-                ...u,
-                active: !u.active,
-                status: !u.active ? 'Activo' : 'Inactivo'
-              }
-            : u
-        )
-      );
+      setUsers(prev => prev.map(u =>
+        u.employee_id === user.employee_id
+          ? { ...u, status: u.status === 'Activo' ? 'Inactivo' : 'Activo', active: !(u.status === 'Activo') }
+          : u
+      ));
     } catch (err) {
       console.error(err);
     }
   };
 
-  // FROM HERE your original return UI goes
+  // Delete (soft deactivate)
+  const handleDelete = async (user) => {
+    if (!window.confirm('¿Desactivar este usuario? Ya no podrá acceder al sistema.')) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/users/${user.employee_id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsers(prev => prev.map(u =>
+        u.employee_id === user.employee_id
+          ? { ...u, status: 'Inactivo', active: false }
+          : u
+      ));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Inline styles
+  const labelStyle = {
+    display: 'block', fontFamily: 'var(--font-body)', fontWeight: 700,
+    fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase',
+    letterSpacing: '0.5px', marginBottom: '6px',
+  };
+  const inputStyle = {
+    width: '100%', padding: '10px 14px', borderRadius: '10px',
+    border: '1.5px solid #E2E8F0', backgroundColor: '#F8FAFC',
+    fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#0F172A',
+    boxSizing: 'border-box', outline: 'none',
+  };
 
   return (
     <div>

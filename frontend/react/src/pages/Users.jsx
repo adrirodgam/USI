@@ -21,7 +21,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-// Helper to get role badge gradient
+// Helpers
 const getRoleBadgeColor = (role) => {
   const map = {
     developer: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
@@ -32,10 +32,9 @@ const getRoleBadgeColor = (role) => {
     operador: 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
     ingeniero: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
   };
-  return map[role] || 'linear-gradient(135deg, #64748B 0%, #475569 100%)';
+  return map[role] || map.operador;
 };
 
-// Helper for department color
 const getDepartmentColor = (department) => {
   const map = {
     Calidad: '#10B981',
@@ -47,14 +46,13 @@ const getDepartmentColor = (department) => {
   return map[department] || '#64748B';
 };
 
-// 🔥 normalize helper
 const normalize = (str) => (str || '').trim().toLowerCase();
 
 export default function Users() {
   const { token, user } = useApp();
   const navigate = useNavigate();
 
-  // 🔧 FIX: esperar a que user esté listo
+  // Wait until user is ready
   const [userReady, setUserReady] = useState(false);
 
   // State
@@ -67,6 +65,7 @@ export default function Users() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [selectedUser, setSelectedUser] = useState(null);
+
   const [form, setForm] = useState({
     employee_id: '',
     name: '',
@@ -76,17 +75,18 @@ export default function Users() {
     active: true,
     email: '',
   });
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // 🔧 detectar cuando user está listo
+  // Detect when user is ready
   useEffect(() => {
     if (user && user.role) {
       setUserReady(true);
     }
   }, [user]);
 
-  // 🔧 redirect seguro
+  // Safe redirect
   useEffect(() => {
     if (!userReady) return;
 
@@ -97,7 +97,7 @@ export default function Users() {
     }
   }, [userReady, user, navigate]);
 
-  // 🔧 guard correcto
+  // Guard before UI
   if (!userReady || !token) {
     return (
       <div style={{
@@ -114,7 +114,7 @@ export default function Users() {
     );
   }
 
-  // 🔧 role seguro
+  // Safe role
   const safeRole = (user?.role || '').toLowerCase();
   const isAdmin = ['developer', 'admin'].includes(safeRole);
   const isGerente = safeRole === 'gerente';
@@ -143,11 +143,13 @@ export default function Users() {
           active: u.active,
           status: u.active ? 'Activo' : 'Inactivo',
           contactEmail: u.contact_email || null,
-          authEmail,
         };
       }));
     } catch (err) {
-      if (err.response?.status === 401) { localStorage.clear(); window.location.reload(); }
+      if (err.response?.status === 401) {
+        localStorage.clear();
+        window.location.reload();
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -163,16 +165,34 @@ export default function Users() {
   const activeUsers = users.filter(u => u.active).length;
   const inactiveUsers = totalUsers - activeUsers;
 
-  const activePercent = totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(0) : '0';
-  const inactivePercent = totalUsers > 0 ? ((inactiveUsers / totalUsers) * 100).toFixed(0) : '0';
-
   const kpiCards = [
-    { label: 'Total Usuarios', value: totalUsers.toString(), icon: <UsersIcon size={24} />, bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', trendValue: `${totalUsers} registrados`, trendPositive: null },
-    { label: 'Activos', value: activeUsers.toString(), icon: <UserCheck size={24} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', trendValue: `${activePercent}%`, trendPositive: true },
-    { label: 'Inactivos', value: inactiveUsers.toString(), icon: <UserX size={24} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', trendValue: `${inactivePercent}%`, trendPositive: false },
+    {
+      label: 'Total Usuarios',
+      value: totalUsers.toString(),
+      icon: <UsersIcon size={24} />,
+      bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+      trendValue: `${totalUsers} registrados`,
+      trendPositive: null
+    },
+    {
+      label: 'Activos',
+      value: activeUsers.toString(),
+      icon: <UserCheck size={24} />,
+      bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+      trendValue: `${((activeUsers / totalUsers) * 100 || 0).toFixed(0)}%`,
+      trendPositive: true
+    },
+    {
+      label: 'Inactivos',
+      value: inactiveUsers.toString(),
+      icon: <UserX size={24} />,
+      bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+      trendValue: `${((inactiveUsers / totalUsers) * 100 || 0).toFixed(0)}%`,
+      trendPositive: false
+    }
   ];
 
-  // Filter
+  // Filtering
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       const search = searchTerm.toLowerCase();
@@ -195,9 +215,17 @@ export default function Users() {
 
       return matchesSearch && matchesRole && matchesActive && matchesDept && matchesGerenteDept;
     });
-  }, [users, searchTerm, filterRole, filterActive, filterDepartment, isGerente, user]);
+  }, [
+    users,
+    searchTerm,
+    filterRole,
+    filterActive,
+    filterDepartment,
+    isGerente,
+    user
+  ]);
 
-  // Toggle status
+  // Toggle active status
   const handleToggleStatus = async (user) => {
     try {
       await axios.put(
@@ -205,22 +233,357 @@ export default function Users() {
         { active: !user.active },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setUsers(prev => prev.map(u =>
-        u.employee_id === user.employee_id
-          ? { ...u, active: !u.active, status: !u.active ? 'Activo' : 'Inactivo' }
-          : u
-      ));
+
+      setUsers(prev =>
+        prev.map(u =>
+          u.employee_id === user.employee_id
+            ? {
+                ...u,
+                active: !u.active,
+                status: !u.active ? 'Activo' : 'Inactivo'
+              }
+            : u
+        )
+      );
     } catch (err) {
       console.error(err);
     }
   };
 
-  // DELETE etc... (tu código igual, sin cambios)
+  // FROM HERE your original return UI goes
 
   return (
     <div>
-      <TopBar title="Gestión de Usuarios" breadcrumb="Panel principal" />
-      {/* TODO tu UI intacta aquí (tabla, filtros, modal, etc.) */}
+      <TopBar title="Gestión de Usuarios" breadcrumb="Panel principal">
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={openCreateModal}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              height: '36px', padding: '0 16px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+              color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600,
+              fontSize: '13px', border: 'none', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(16,185,129,0.25)'
+            }}
+          >
+            <UserPlus size={16} /> Nuevo Usuario
+          </button>
+          <button
+            onClick={handleExport}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              height: '36px', padding: '0 16px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5F7E 100%)',
+              color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600,
+              fontSize: '13px', border: 'none', cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(30,58,95,0.25)'
+            }}
+          >
+            <Download size={16} /> Exportar
+          </button>
+        </div>
+      </TopBar>
+
+      <div className="p-7">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {kpiCards.map((kpi, idx) => (
+            <div key={idx} className="rounded-2xl p-5" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: kpi.bgGradient, color: 'white', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                  {kpi.icon}
+                </div>
+                {kpi.trendPositive !== null && (
+                  <TrendingUp size={16} style={{ color: kpi.trendPositive ? '#10B981' : '#EF4444' }} />
+                )}
+              </div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '24px', color: '#0F172A', marginBottom: '4px' }}>{kpi.value}</div>
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: '#64748B', fontWeight: 500 }}>{kpi.label}</div>
+              <div style={{ fontFamily: 'var(--font-body)', fontSize: '11px', color: '#94A3B8', marginTop: '2px' }}>{kpi.trendValue}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div className="rounded-2xl p-5 mb-6" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <input
+                type="text"
+                placeholder="Buscar usuario..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ ...inputStyle, paddingLeft: '36px' }}
+              />
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Filter size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <select
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+                style={{ ...inputStyle, paddingLeft: '36px', cursor: 'pointer' }}
+              >
+                <option>Todos</option>
+                <option value="developer">Developer</option>
+                <option value="admin">Admin</option>
+                <option value="gerente">Gerente</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="inspector">Inspector</option>
+                <option value="operador">Operador</option>
+              </select>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Briefcase size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                style={{ ...inputStyle, paddingLeft: '36px', cursor: 'pointer' }}
+              >
+                <option>Todos</option>
+                <option value="Calidad">Calidad</option>
+                <option value="Produccion">Producción</option>
+                <option value="Ingenieria">Ingeniería</option>
+                <option value="Administracion">Administración</option>
+                <option value="Operaciones">Operaciones</option>
+              </select>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <AlertCircle size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+              <select
+                value={filterActive}
+                onChange={(e) => setFilterActive(e.target.value)}
+                style={{ ...inputStyle, paddingLeft: '36px', cursor: 'pointer' }}
+              >
+                <option>Todos</option>
+                <option>Activo</option>
+                <option>Inactivo</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ marginTop: '12px', fontFamily: 'var(--font-body)', fontSize: '12px', color: '#64748B' }}>
+            Mostrando {filteredUsers.length} de {totalUsers} usuarios
+          </div>
+        </div>
+
+        {/* Users Table */}
+        <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', border: '1px solid rgba(0,0,0,0.06)' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2D5F7E 100%)' }}>
+                  {['Employee ID', 'Usuario', 'Email', 'Rol', 'Departamento', 'Estado', 'Acciones'].map(col => (
+                    <th key={col} className="text-left px-6 py-3" style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: '10px', color: 'white', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
+                      Cargando usuarios...
+                    </td>
+                  </tr>
+                ) : filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12" style={{ fontFamily: 'var(--font-body)', color: '#94A3B8' }}>
+                      No se encontraron usuarios.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => (
+                    <tr key={u.employee_id} className="border-b hover:bg-[#F8FAFF] transition-colors" style={{ borderColor: '#F8FAFC' }}>
+                      <td className="px-6 py-4" style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#1E3A5F', fontWeight: 600 }}>
+                        {u.employee_id}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div style={{ fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>{u.name}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontFamily: 'var(--font-body)', fontSize: '11px', color: '#64748B' }}>
+                          <Mail size={12} /> {u.contactEmail || '—'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div
+                          className="px-2 py-1 rounded-lg"
+                          style={{
+                            background: getRoleBadgeColor(u.role),
+                            color: 'white',
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textTransform: 'capitalize',
+                            display: 'inline-block',
+                          }}
+                        >
+                          {u.role}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getDepartmentColor(u.department || '') }} />
+                          <span style={{ fontFamily: 'var(--font-body)', fontSize: '12px', color: '#64748B' }}>{u.department || '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => handleToggleStatus(u)}
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: '16px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-body)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: u.status === 'Activo' ? '#ECFDF5' : '#FEF2F2',
+                            color: u.status === 'Activo' ? '#10B981' : '#EF4444',
+                          }}
+                        >
+                          {u.status}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => openEditModal(u)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: '#EFF6FF',
+                              color: '#2563EB',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(u)}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              cursor: 'pointer',
+                              background: '#FEF2F2',
+                              color: '#EF4444',
+                              display: 'flex',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={closeModal} />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="w-full max-w-lg rounded-2xl p-6 bg-white shadow-2xl" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '18px', color: '#0F172A' }}>
+                  {modalMode === 'create' ? 'Nuevo Usuario' : 'Editar Usuario'}
+                </h2>
+                <button onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}>
+                  <X size={20} />
+                </button>
+              </div>
+              {error && (
+                <div className="p-3 mb-4 rounded-lg" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', fontFamily: 'var(--font-body)', fontSize: '12px', color: '#EF4444' }}>
+                  {error}
+                </div>
+              )}
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={labelStyle}>Employee ID *</label>
+                  <input
+                    type="text"
+                    value={form.employee_id}
+                    onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
+                    disabled={modalMode === 'edit'}
+                    style={{ ...inputStyle, opacity: modalMode === 'edit' ? 0.6 : 1 }}
+                    placeholder="Ej: 112417"
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Nombre Completo *</label>
+                  <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} placeholder="Ej: Roberto Gradillas" />
+                </div>
+                <div>
+                  <label style={labelStyle}>Iniciales *</label>
+                  <input type="text" value={form.initial} onChange={(e) => setForm({ ...form, initial: e.target.value })} style={inputStyle} placeholder="Ej: RG" maxLength={3} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Correo de contacto (opcional)</label>
+                  <input
+                    type="email"
+                    value={form.email || ''}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    style={inputStyle}
+                    placeholder="ej: maria.garcia@libraind.com"
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Rol *</label>
+                  <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} style={inputStyle}>
+                    <option value="developer">Developer</option>
+                    <option value="admin">Admin</option>
+                    <option value="gerente">Gerente</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="inspector">Inspector</option>
+                    <option value="operador">Operador</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Departamento</label>
+                  <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} style={inputStyle}>
+                    <option>Calidad</option>
+                    <option>Produccion</option>
+                    <option>Ingenieria</option>
+                    <option>Administracion</option>
+                    <option>Operaciones</option>
+                  </select>
+                </div>
+                {modalMode === 'edit' && (
+                  <div>
+                    <label style={labelStyle}>Estado</label>
+                    <select value={form.active ? 'Activo' : 'Inactivo'} onChange={(e) => setForm({ ...form, active: e.target.value === 'Activo' })} style={inputStyle}>
+                      <option>Activo</option>
+                      <option>Inactivo</option>
+                    </select>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                  <button type="button" onClick={closeModal}
+                    style={{ padding: '10px 24px', borderRadius: '10px', border: '1.5px solid #E2E8F0', background: 'white', color: '#64748B', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}>
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={submitting}
+                    style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '13px', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+                    {submitting ? 'Guardando...' : modalMode === 'create' ? 'Crear Usuario' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

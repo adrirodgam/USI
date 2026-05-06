@@ -47,6 +47,9 @@ const getDepartmentColor = (department) => {
   return map[department] || '#64748B';
 };
 
+// 🔥 FIX: normalizar strings (acentos/espacios/case)
+const normalize = (str) => (str || '').trim().toLowerCase();
+
 export default function Users() {
   const { token, user } = useApp();
   const navigate = useNavigate();
@@ -73,7 +76,7 @@ export default function Users() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Guard: wait until user data is loaded from context
+  // Guard
   if (!user || !token) {
     return (
       <div style={{
@@ -90,12 +93,11 @@ export default function Users() {
     );
   }
 
-  // Check permission via useEffect — avoids side effects during render
+  // 🔁 FIX: redirect seguro
   useEffect(() => {
-    if (!user) return;
-    const role = user.role || '';
-    if (!['developer', 'admin', 'gerente'].includes(role)) {
-      navigate('/clientes');
+    if (!user?.role) return;
+    if (!['developer', 'admin', 'gerente'].includes(user.role)) {
+      navigate('/clientes', { replace: true });
     }
   }, [user, navigate]);
 
@@ -103,24 +105,34 @@ export default function Users() {
   const isAdmin = ['developer', 'admin'].includes(role);
   const isGerente = role === 'gerente';
 
-  // Fetch users from backend
+  // Fetch users
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Explicit mapping — prevents Auth fake email from overwriting contact email
-      setUsers(res.data.map(u => ({
-        employee_id: u.employee_id,
-        name: u.name,
-        initial: u.initial,
-        role: u.role,
-        department: u.department || 'Calidad',
-        active: u.active,
-        status: u.active ? 'Activo' : 'Inactivo',
-        contactEmail: u.email || null,
-      })));
+
+      // 🔥 FIX: separar email auth (falso) y derivar employee_id
+      setUsers(res.data.map(u => {
+        const authEmail = u.email || '';
+
+        const derivedId = authEmail.includes('@libraind.com')
+          ? authEmail.replace('@libraind.com', '')
+          : (u.employee_id || '');
+
+        return {
+          employee_id: derivedId,
+          name: u.name,
+          initial: u.initial,
+          role: u.role,
+          department: u.department || 'Calidad',
+          active: u.active,
+          status: u.active ? 'Activo' : 'Inactivo',
+          contactEmail: u.contact_email || null, // 👈 no usar el falso para UI
+          authEmail,
+        };
+      }));
     } catch (err) {
       if (err.response?.status === 401) { localStorage.clear(); window.location.reload(); }
       console.error(err);
@@ -133,32 +145,45 @@ export default function Users() {
     if (token) fetchUsers();
   }, [token]);
 
-  // KPIs from real data
+  // KPIs
   const totalUsers = users.length;
-  const activeUsers = users.filter(u => u.status === 'Activo').length;
+  const activeUsers = users.filter(u => u.active).length;
   const inactiveUsers = totalUsers - activeUsers;
   const adminCount = users.filter(u => u.role === 'admin' || u.role === 'developer').length;
   const supervisorCount = users.filter(u => u.role === 'supervisor').length;
 
+  // 🔥 FIX: evitar división por 0
+  const activePercent = totalUsers > 0 ? ((activeUsers / totalUsers) * 100).toFixed(0) : '0';
+  const inactivePercent = totalUsers > 0 ? ((inactiveUsers / totalUsers) * 100).toFixed(0) : '0';
+
   const kpiCards = [
     { label: 'Total Usuarios', value: totalUsers.toString(), icon: <UsersIcon size={24} />, bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', trendValue: `${totalUsers} registrados`, trendPositive: null },
-    { label: 'Activos', value: activeUsers.toString(), icon: <UserCheck size={24} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', trendValue: `${((activeUsers / totalUsers) * 100 || 0).toFixed(0)}%`, trendPositive: true },
-    { label: 'Inactivos', value: inactiveUsers.toString(), icon: <UserX size={24} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', trendValue: `${((inactiveUsers / totalUsers) * 100 || 0).toFixed(0)}%`, trendPositive: false },
+    { label: 'Activos', value: activeUsers.toString(), icon: <UserCheck size={24} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', trendValue: `${activePercent}%`, trendPositive: true },
+    { label: 'Inactivos', value: inactiveUsers.toString(), icon: <UserX size={24} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', trendValue: `${inactivePercent}%`, trendPositive: false },
     { label: 'Admin / Superv.', value: `${adminCount}/${supervisorCount}`, icon: <Shield size={24} />, bgGradient: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)', trendValue: 'Admin + Super', trendPositive: null },
   ];
 
-  // Filter logic — gerente only sees their department
+  // 🔍 FILTER FIX (normalize + id seguro)
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
-      const nameMatch = u.name?.toLowerCase().includes(searchTerm.toLowerCase());
-      const idMatch = u.employee_id?.toLowerCase().includes(searchTerm.toLowerCase());
-      const emailMatch = (u.contactEmail || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const search = searchTerm.toLowerCase();
+
+      const nameMatch = (u.name || '').toLowerCase().includes(search);
+      const idMatch = String(u.employee_id || '').toLowerCase().includes(search);
+      const emailMatch = (u.contactEmail || '').toLowerCase().includes(search);
+
       const matchesSearch = nameMatch || idMatch || emailMatch;
       const matchesRole = filterRole === 'Todos' || u.role === filterRole;
       const matchesActive = filterActive === 'Todos' || u.status === filterActive;
-      const matchesDept = filterDepartment === 'Todos' || u.department === filterDepartment;
-      // Gerente only sees their own department
-      const matchesGerenteDept = isGerente ? u.department === user.department : true;
+
+      const matchesDept =
+        filterDepartment === 'Todos' ||
+        normalize(u.department) === normalize(filterDepartment);
+
+      const matchesGerenteDept = isGerente
+        ? normalize(u.department) === normalize(user.department)
+        : true;
+
       return matchesSearch && matchesRole && matchesActive && matchesDept && matchesGerenteDept;
     });
   }, [users, searchTerm, filterRole, filterActive, filterDepartment, isGerente, user]);
@@ -176,6 +201,7 @@ export default function Users() {
         u.status,
       ])
     ].map(r => r.join(',')).join('\n');
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -208,7 +234,7 @@ export default function Users() {
       initial: user.initial || '',
       role: user.role,
       department: user.department || 'Calidad',
-      active: user.status === 'Activo',
+      active: user.active,
       email: user.contactEmail || '',
     });
     setError('');
@@ -220,7 +246,7 @@ export default function Users() {
     setSelectedUser(null);
   };
 
-  // Form submit (create or update)
+  // Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.employee_id || !form.name || !form.initial || !form.role) {
@@ -239,7 +265,13 @@ export default function Users() {
       } else {
         await axios.put(
           `${import.meta.env.VITE_API_URL}/api/users/${selectedUser.employee_id}`,
-          { name: form.name, role: form.role, active: form.active, email: form.email, department: form.department },
+          {
+            name: form.name,
+            role: form.role,
+            active: form.active,
+            email: form.email,
+            department: form.department
+          },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
@@ -252,17 +284,17 @@ export default function Users() {
     }
   };
 
-  // Toggle active status
+  // 🔄 FIX toggle (usar active como fuente de verdad)
   const handleToggleStatus = async (user) => {
     try {
       await axios.put(
         `${import.meta.env.VITE_API_URL}/api/users/${user.employee_id}`,
-        { active: user.status !== 'Activo' },
+        { active: !user.active },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setUsers(prev => prev.map(u =>
         u.employee_id === user.employee_id
-          ? { ...u, status: u.status === 'Activo' ? 'Inactivo' : 'Activo', active: !(u.status === 'Activo') }
+          ? { ...u, active: !u.active, status: !u.active ? 'Activo' : 'Inactivo' }
           : u
       ));
     } catch (err) {
@@ -270,7 +302,7 @@ export default function Users() {
     }
   };
 
-  // Delete (soft deactivate)
+  // Delete (soft)
   const handleDelete = async (user) => {
     if (!window.confirm('¿Desactivar este usuario? Ya no podrá acceder al sistema.')) return;
     try {
@@ -287,7 +319,7 @@ export default function Users() {
     }
   };
 
-  // Inline styles
+  // Styles
   const labelStyle = {
     display: 'block', fontFamily: 'var(--font-body)', fontWeight: 700,
     fontSize: '10px', color: '#94A3B8', textTransform: 'uppercase',
@@ -491,7 +523,7 @@ export default function Users() {
                             padding: '4px 12px',
                             borderRadius: '16px',
                             border: 'none',
-                            cursor: isAdmin ? 'pointer' : 'default',
+                            cursor: isAdmin ? 'pointer' : 'not-allowed',
                             fontFamily: 'var(--font-body)',
                             fontSize: '11px',
                             fontWeight: 600,
@@ -549,7 +581,7 @@ export default function Users() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal (sin cambios de diseño) */}
       {showModal && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40" onClick={closeModal} />

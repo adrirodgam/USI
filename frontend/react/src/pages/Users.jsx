@@ -4,9 +4,21 @@ import axios from 'axios';
 import TopBar from '../components/TopBar';
 import { useApp } from '../context/AppContext';
 import {
-  Users, UserPlus, UserCheck, UserX, Shield,
-  Search, Filter, Download, Edit, Trash2, X,
-  Mail, Briefcase, TrendingUp, AlertCircle
+  Users as UsersIcon,
+  UserPlus,
+  UserCheck,
+  UserX,
+  Shield,
+  Download,
+  Search,
+  Filter,
+  Briefcase,
+  AlertCircle,
+  Mail,
+  Edit,
+  Trash2,
+  X,
+  TrendingUp
 } from 'lucide-react';
 
 // Helper to get role badge gradient
@@ -18,6 +30,7 @@ const getRoleBadgeColor = (role) => {
     supervisor: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)',
     inspector: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
     operador: 'linear-gradient(135deg, #64748B 0%, #475569 100%)',
+    ingeniero: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)',
   };
   return map[role] || 'linear-gradient(135deg, #64748B 0%, #475569 100%)';
 };
@@ -55,7 +68,7 @@ export default function Users() {
     role: 'inspector',
     department: 'Calidad',
     active: true,
-    email: '', // Optional contact email
+    email: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -77,13 +90,18 @@ export default function Users() {
     );
   }
 
-  // Check permission: only developer or admin can access
-  const role = user.role || localStorage.getItem('role') || '';
+  // Check permission via useEffect — avoids side effects during render
+  useEffect(() => {
+    if (!user) return;
+    const role = user.role || '';
+    if (!['developer', 'admin', 'gerente'].includes(role)) {
+      navigate('/clientes');
+    }
+  }, [user, navigate]);
+
+  const role = user?.role || '';
   const isAdmin = ['developer', 'admin'].includes(role);
-  if (!isAdmin) {
-    navigate('/clientes');
-    return null;
-  }
+  const isGerente = role === 'gerente';
 
   // Fetch users from backend
   const fetchUsers = async () => {
@@ -92,12 +110,16 @@ export default function Users() {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Map fields for UI
+      // Explicit mapping — prevents Auth fake email from overwriting contact email
       setUsers(res.data.map(u => ({
-        ...u,
-        status: u.active ? 'Activo' : 'Inactivo',
+        employee_id: u.employee_id,
+        name: u.name,
+        initial: u.initial,
+        role: u.role,
         department: u.department || 'Calidad',
-        contactEmail: u.email || null, // Contact email from DB
+        active: u.active,
+        status: u.active ? 'Activo' : 'Inactivo',
+        contactEmail: u.email || null,
       })));
     } catch (err) {
       if (err.response?.status === 401) { localStorage.clear(); window.location.reload(); }
@@ -107,7 +129,9 @@ export default function Users() {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    if (token) fetchUsers();
+  }, [token]);
 
   // KPIs from real data
   const totalUsers = users.length;
@@ -117,13 +141,13 @@ export default function Users() {
   const supervisorCount = users.filter(u => u.role === 'supervisor').length;
 
   const kpiCards = [
-    { label: 'Total Usuarios', value: totalUsers.toString(), icon: <Users size={24} />, bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', trendValue: `${totalUsers} registrados`, trendPositive: null },
+    { label: 'Total Usuarios', value: totalUsers.toString(), icon: <UsersIcon size={24} />, bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)', trendValue: `${totalUsers} registrados`, trendPositive: null },
     { label: 'Activos', value: activeUsers.toString(), icon: <UserCheck size={24} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', trendValue: `${((activeUsers / totalUsers) * 100 || 0).toFixed(0)}%`, trendPositive: true },
     { label: 'Inactivos', value: inactiveUsers.toString(), icon: <UserX size={24} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', trendValue: `${((inactiveUsers / totalUsers) * 100 || 0).toFixed(0)}%`, trendPositive: false },
     { label: 'Admin / Superv.', value: `${adminCount}/${supervisorCount}`, icon: <Shield size={24} />, bgGradient: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)', trendValue: 'Admin + Super', trendPositive: null },
   ];
 
-  // Filter logic
+  // Filter logic — gerente only sees their department
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       const nameMatch = u.name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -133,9 +157,11 @@ export default function Users() {
       const matchesRole = filterRole === 'Todos' || u.role === filterRole;
       const matchesActive = filterActive === 'Todos' || u.status === filterActive;
       const matchesDept = filterDepartment === 'Todos' || u.department === filterDepartment;
-      return matchesSearch && matchesRole && matchesActive && matchesDept;
+      // Gerente only sees their own department
+      const matchesGerenteDept = isGerente ? u.department === user.department : true;
+      return matchesSearch && matchesRole && matchesActive && matchesDept && matchesGerenteDept;
     });
-  }, [users, searchTerm, filterRole, filterActive, filterDepartment]);
+  }, [users, searchTerm, filterRole, filterActive, filterDepartment, isGerente, user]);
 
   // Export CSV
   const handleExport = () => {
@@ -144,7 +170,7 @@ export default function Users() {
       ...filteredUsers.map(u => [
         u.employee_id,
         u.name,
-        u.contactEmail || '',   // Use contact email
+        u.contactEmail || '',
         u.role,
         u.department || '',
         u.status,
@@ -167,7 +193,7 @@ export default function Users() {
       role: 'inspector',
       department: 'Calidad',
       active: true,
-      email: '', // Reset contact email
+      email: '',
     });
     setError('');
     setShowModal(true);
@@ -182,8 +208,8 @@ export default function Users() {
       initial: user.initial || '',
       role: user.role,
       department: user.department || 'Calidad',
-      active: user.status === 'Activo' ? true : false,
-      email: user.contactEmail || '', // Load contact email
+      active: user.status === 'Activo',
+      email: user.contactEmail || '',
     });
     setError('');
     setShowModal(true);
@@ -207,13 +233,13 @@ export default function Users() {
       if (modalMode === 'create') {
         await axios.post(
           `${import.meta.env.VITE_API_URL}/api/users`,
-          form, // Includes email (optional)
+          form,
           { headers: { Authorization: `Bearer ${token}` } }
         );
       } else {
         await axios.put(
           `${import.meta.env.VITE_API_URL}/api/users/${selectedUser.employee_id}`,
-          { name: form.name, role: form.role, active: form.active, email: form.email },
+          { name: form.name, role: form.role, active: form.active, email: form.email, department: form.department },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
@@ -278,19 +304,21 @@ export default function Users() {
     <div>
       <TopBar title="Gestión de Usuarios" breadcrumb="Panel principal">
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={openCreateModal}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
-              height: '36px', padding: '0 16px', borderRadius: '10px',
-              background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-              color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600,
-              fontSize: '13px', border: 'none', cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(16,185,129,0.25)'
-            }}
-          >
-            <UserPlus size={16} /> Nuevo Usuario
-          </button>
+          {isAdmin && (
+            <button
+              onClick={openCreateModal}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                height: '36px', padding: '0 16px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                color: 'white', fontFamily: 'var(--font-body)', fontWeight: 600,
+                fontSize: '13px', border: 'none', cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(16,185,129,0.25)'
+              }}
+            >
+              <UserPlus size={16} /> Nuevo Usuario
+            </button>
+          )}
           <button
             onClick={handleExport}
             style={{
@@ -354,23 +382,26 @@ export default function Users() {
                 <option value="supervisor">Supervisor</option>
                 <option value="inspector">Inspector</option>
                 <option value="operador">Operador</option>
+                <option value="ingeniero">Ingeniero</option>
               </select>
             </div>
-            <div style={{ position: 'relative' }}>
-              <Briefcase size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
-              <select
-                value={filterDepartment}
-                onChange={(e) => setFilterDepartment(e.target.value)}
-                style={{ ...inputStyle, paddingLeft: '36px', cursor: 'pointer' }}
-              >
-                <option>Todos</option>
-                <option value="Calidad">Calidad</option>
-                <option value="Produccion">Producción</option>
-                <option value="Ingenieria">Ingeniería</option>
-                <option value="Administracion">Administración</option>
-                <option value="Operaciones">Operaciones</option>
-              </select>
-            </div>
+            {!isGerente && (
+              <div style={{ position: 'relative' }}>
+                <Briefcase size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  style={{ ...inputStyle, paddingLeft: '36px', cursor: 'pointer' }}
+                >
+                  <option>Todos</option>
+                  <option value="Calidad">Calidad</option>
+                  <option value="Produccion">Producción</option>
+                  <option value="Ingenieria">Ingeniería</option>
+                  <option value="Administracion">Administración</option>
+                  <option value="Operaciones">Operaciones</option>
+                </select>
+              </div>
+            )}
             <div style={{ position: 'relative' }}>
               <AlertCircle size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
               <select
@@ -386,6 +417,7 @@ export default function Users() {
           </div>
           <div style={{ marginTop: '12px', fontFamily: 'var(--font-body)', fontSize: '12px', color: '#64748B' }}>
             Mostrando {filteredUsers.length} de {totalUsers} usuarios
+            {isGerente && <span style={{ marginLeft: '8px', color: '#3B82F6' }}>— Vista de gerente: {user.department}</span>}
           </div>
         </div>
 
@@ -454,11 +486,12 @@ export default function Users() {
                       <td className="px-6 py-4">
                         <button
                           onClick={() => handleToggleStatus(u)}
+                          disabled={!isAdmin}
                           style={{
                             padding: '4px 12px',
                             borderRadius: '16px',
                             border: 'none',
-                            cursor: 'pointer',
+                            cursor: isAdmin ? 'pointer' : 'default',
                             fontFamily: 'var(--font-body)',
                             fontSize: '11px',
                             fontWeight: 600,
@@ -471,36 +504,40 @@ export default function Users() {
                       </td>
                       <td className="px-6 py-4">
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            onClick={() => openEditModal(u)}
-                            style={{
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              cursor: 'pointer',
-                              background: '#EFF6FF',
-                              color: '#2563EB',
-                              display: 'flex',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <Edit size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u)}
-                            style={{
-                              padding: '6px 10px',
-                              borderRadius: '8px',
-                              border: 'none',
-                              cursor: 'pointer',
-                              background: '#FEF2F2',
-                              color: '#EF4444',
-                              display: 'flex',
-                              alignItems: 'center',
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditModal(u)}
+                              style={{
+                                padding: '6px 10px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                background: '#EFF6FF',
+                                color: '#2563EB',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Edit size={14} />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => handleDelete(u)}
+                              style={{
+                                padding: '6px 10px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                cursor: 'pointer',
+                                background: '#FEF2F2',
+                                color: '#EF4444',
+                                display: 'flex',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -570,6 +607,7 @@ export default function Users() {
                     <option value="supervisor">Supervisor</option>
                     <option value="inspector">Inspector</option>
                     <option value="operador">Operador</option>
+                    <option value="ingeniero">Ingeniero</option>
                   </select>
                 </div>
                 <div>

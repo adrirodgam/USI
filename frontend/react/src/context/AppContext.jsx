@@ -48,21 +48,30 @@ export function AppProvider({ children }) {
         { headers: { Authorization: `Bearer ${authToken}` } }
       );
 
-      // Fallback if API returned empty or unexpected
       if (!userData) {
         console.warn('No user data returned from API, setting user with email only');
         setUser({ email });
         return;
       }
 
-      // Merge JWT payload with DB record (name, employee_id, signature_url)
+      // FIX: Build user explicitly — never let JWT email overwrite the real contact email
       setUser({
-        ...decodedData,
-        ...userData
+        // From JWT (only what we need from there)
+        sub: decodedData.sub,
+        exp: decodedData.exp,
+        iat: decodedData.iat,
+        // From public.users (these always win)
+        employee_id: userData.employee_id,
+        name: userData.name,
+        initial: userData.initial,
+        role: userData.role,
+        active: userData.active,
+        department: userData.department || null,
+        signature_url: userData.signature_url || null,
+        contactEmail: userData.email || null, // real contact email
       });
     } catch (err) {
       console.error('Error in decodeAndFetchUser:', err);
-      // Try to salvage email from token so UI doesn't break
       try {
         const fallbackPayload = JSON.parse(atob(authToken.split('.')[1]));
         setUser({ email: fallbackPayload.email || null });
@@ -75,7 +84,7 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider value={{
       token, setToken,
-      user, setUser, 
+      user, setUser,
       customerId, setCustomerId,
       selectedPiece, setSelectedPiece,
       handleLoginSuccess,

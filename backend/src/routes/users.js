@@ -14,9 +14,10 @@ router.get('/', verifyToken, async (req, res) => {
       const employeeId = email.split('@')[0];
       if (!employeeId) return res.status(400).json({ error: 'Invalid email format' });
 
+      // FIX: Include all fields needed by AppContext (role, initial, department, active)
       const { data, error } = await supabaseAdmin
         .from('users')
-        .select('employee_id, name, signature_url, email')
+        .select('employee_id, name, initial, role, active, department, signature_url, email')
         .eq('employee_id', employeeId)
         .single();
 
@@ -32,11 +33,12 @@ router.get('/', verifyToken, async (req, res) => {
 });
 
 // GET /api/users/all – list all users (admin/developer)
-router.get('/all', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
+router.get('/all', verifyToken, checkRole('developer', 'admin', 'gerente'), async (req, res) => {
   try {
+    // FIX: Include department in SELECT
     const { data, error } = await supabaseAdmin
       .from('users')
-      .select('employee_id, name, initial, role, active, email');
+      .select('employee_id, name, initial, role, active, department, email');
     if (error) return res.status(400).json({ error: error.message });
     res.json(data);
   } catch (err) {
@@ -48,7 +50,7 @@ router.get('/all', verifyToken, checkRole('developer', 'admin'), async (req, res
 // POST /api/users – create new user (also in Auth)
 router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
-    const { employee_id, name, initial, role, email } = req.body; // email is optional contact email
+    const { employee_id, name, initial, role, department, email } = req.body;
     if (!employee_id || !name || !initial || !role) {
       return res.status(400).json({ error: 'Missing required fields: employee_id, name, initial, role' });
     }
@@ -63,7 +65,7 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
 
     // Create user in Supabase Auth (login email = employee_id@libraind.com)
     const loginEmail = `${employee_id}@libraind.com`;
-    const temporaryPassword = 'Usi2026!'; // can be changed later
+    const temporaryPassword = 'Usi2026!';
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: loginEmail,
       password: temporaryPassword,
@@ -76,20 +78,21 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
       return res.status(500).json({ error: 'Failed to create login account' });
     }
 
-    // Insert into public.users with optional contact email
+    // Insert into public.users — email here is the real contact email, NOT the login email
     const newUser = {
       employee_id,
       name,
       initial,
       role,
+      department: department || 'Calidad',
       active: true,
-      email: email || null, // contact email (optional)
+      email: email || null,
     };
 
     const { data, error } = await supabaseAdmin
       .from('users')
       .insert([newUser])
-      .select('employee_id, name, initial, role, active, email')
+      .select('employee_id, name, initial, role, active, department, email')
       .single();
 
     if (error) {
@@ -109,13 +112,14 @@ router.post('/', verifyToken, checkRole('developer', 'admin'), async (req, res) 
 router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async (req, res) => {
   try {
     const { employee_id } = req.params;
-    const { name, role, active, email } = req.body;
+    const { name, role, active, email, department } = req.body;
 
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) updates.role = role;
     if (active !== undefined) updates.active = active;
-    if (email !== undefined) updates.email = email; // allow updating contact email
+    if (email !== undefined) updates.email = email;
+    if (department !== undefined) updates.department = department;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -125,7 +129,7 @@ router.put('/:employee_id', verifyToken, checkRole('developer', 'admin'), async 
       .from('users')
       .update(updates)
       .eq('employee_id', employee_id)
-      .select('employee_id, name, initial, role, active, email')
+      .select('employee_id, name, initial, role, active, department, email')
       .single();
 
     if (error) return res.status(400).json({ error: error.message });

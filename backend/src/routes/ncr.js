@@ -9,8 +9,8 @@
 const express = require('express');
 const router = express.Router();
 const { getSheet } = require('../services/smartsheet');
-const { createSupabaseClient } = require('.../services/supabase');
-const { verifyToken } = require('../middleware/auth.middleware');
+const { createSupabaseClient } = require('../services/supabase');
+const { verifyToken } = require('../middleware/auth.middleware');  // ← CORREGIDO
 
 // Sheet ID for NCR Manufacturing Issues Log
 const NCR_SHEET_ID = '7886010277908356';

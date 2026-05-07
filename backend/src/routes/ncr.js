@@ -1,61 +1,60 @@
-/** 
- * NCR Routes - Smartsheet - Supabase Status Tracker
+/**
+ * NCR Routes - Smartsheet + Supabase Status Tracker
  * 
- * Smartsheet is READ-ONLY. This route fetches data from Smartsheet and updates the local Supabase database accordingly.
- * Supabase only stores workflow status (open/in_proccess/closed) and timestamps for each NCR, not the full details from Smartsheet.
- * linked by MI# (unique identifier for each NCR).
+ * Smartsheet is READ-ONLY source of truth for NCR data.
+ * Supabase only stores workflow status (open/in_progress/closed)
+ * linked by MI# (unique identifier from Smartsheet)
  */
 
 const express = require('express');
 const router = express.Router();
-const { getSheet, SHEET_IDS } = require('../smartsheet');
+const { getSheet } = require('../smartsheet');
 const { createSupabaseClient } = require('../supabase');
 const { verifyToken } = require('../auth');
 
-//Sheet ID  for NCR Manufacturing Issues Log
+// Sheet ID for NCR Manufacturing Issues Log
 const NCR_SHEET_ID = '7886010277908356';
 
 /**
- * GET /api/ncr 
+ * GET /api/ncr
  * Returns RAW Smartsheet data (no parsing)
- * Frontend will parse and combine wiht statuses
+ * Frontend will parse and combine with statuses
  */
-router.get('/', verifyToken, async (req, res => {
-    try {
-        //Get raw sheet data from Smartsheet
-        const sheetData = await getSheet(NCR_SHEET_ID);
-
-        res.json({
-            succes: true,
-            data: sheetData
-        });
-    } catch (err) {
-        console.error('Error fetching NCR sheet:', err);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to fetch NCR data from Smartsheet'
-        });
-    }
-}));
+router.get('/', verifyToken, async (req, res) => {
+  try {
+    // Get raw sheet data from Smartsheet
+    const sheetData = await getSheet(NCR_SHEET_ID);
+    
+    res.json({
+      success: true,
+      data: sheetData
+    });
+  } catch (error) {
+    console.error('Error fetching NCR sheet:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch NCR data from Smartsheet'
+    });
+  }
+});
 
 /**
  * GET /api/ncr/statuses
- * Returns all statuses from Supabases as a map: { "MI#": "status"}
+ * Returns all statuses from Supabase as a map: { "MI#": "status" }
  */
 router.get('/statuses', verifyToken, async (req, res) => {
-    try {
-        const supabase = createSupabaseClient();
-        
-        //Get all status record from Supabase
-        const { data, error } = await supabase
-        .from('ncr_status')
-        .select('mi_id, status');
-        
-        if (error) {
-            throw new Error('Failed to fetch NCR statuses from Supabase');
-        }
-
-const statusMap = {};
+  try {
+    const supabase = createSupabaseClient();
+    
+    // Get all status records from Supabase
+    const { data, error } = await supabase
+      .from('ncr_status')
+      .select('mi_id, status');
+    
+    if (error) throw error;
+    
+    // Convert to map object: { "MI2026-0001": "in_progress", ... }
+    const statusMap = {};
     data.forEach(record => {
       statusMap[record.mi_id] = record.status;
     });
@@ -69,6 +68,39 @@ const statusMap = {};
     res.status(500).json({
       success: false,
       error: 'Failed to fetch statuses from database'
+    });
+  }
+});
+
+/**
+ * GET /api/ncr/severity-mapping
+ * Returns severity mapping for defect types
+ */
+router.get('/severity-mapping', verifyToken, async (req, res) => {
+  try {
+    const supabase = createSupabaseClient();
+    
+    const { data, error } = await supabase
+      .from('ncr_severity_mapping')
+      .select('defect_type, severity');
+    
+    if (error) throw error;
+    
+    // Convert to map object
+    const severityMap = {};
+    data.forEach(item => {
+      severityMap[item.defect_type] = item.severity;
+    });
+    
+    res.json({
+      success: true,
+      data: severityMap
+    });
+  } catch (error) {
+    console.error('Error fetching severity mapping:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch severity mapping'
     });
   }
 });

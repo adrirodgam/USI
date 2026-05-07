@@ -1,16 +1,12 @@
 /**
  * NCR Routes - Smartsheet + Supabase Status Tracker
- * 
- * Smartsheet is READ-ONLY source of truth for NCR data.
- * Supabase only stores workflow status (open/in_progress/closed)
- * linked by MI# (unique identifier from Smartsheet)
  */
 
 const express = require('express');
 const router = express.Router();
 const { getSheet } = require('../services/smartsheet');
 const { createSupabaseClient } = require('../services/supabase');
-const { verifyToken } = require('../middleware/auth.middleware');  // ← CORREGIDO
+const { verifyToken } = require('../middleware/auth');  // ← CORREGIDO (sin .middleware)
 
 // Sheet ID for NCR Manufacturing Issues Log
 const NCR_SHEET_ID = '7886010277908356';
@@ -18,11 +14,9 @@ const NCR_SHEET_ID = '7886010277908356';
 /**
  * GET /api/ncr
  * Returns RAW Smartsheet data (no parsing)
- * Frontend will parse and combine with statuses
  */
 router.get('/', verifyToken, async (req, res) => {
   try {
-    // Get raw sheet data from Smartsheet
     const sheetData = await getSheet(NCR_SHEET_ID);
     
     res.json({
@@ -40,20 +34,18 @@ router.get('/', verifyToken, async (req, res) => {
 
 /**
  * GET /api/ncr/statuses
- * Returns all statuses from Supabase as a map: { "MI#": "status" }
+ * Returns all statuses from Supabase as a map
  */
 router.get('/statuses', verifyToken, async (req, res) => {
   try {
     const supabase = createSupabaseClient();
     
-    // Get all status records from Supabase
     const { data, error } = await supabase
       .from('ncr_status')
       .select('mi_id, status');
     
     if (error) throw error;
     
-    // Convert to map object: { "MI2026-0001": "in_progress", ... }
     const statusMap = {};
     data.forEach(record => {
       statusMap[record.mi_id] = record.status;
@@ -86,7 +78,6 @@ router.get('/severity-mapping', verifyToken, async (req, res) => {
     
     if (error) throw error;
     
-    // Convert to map object
     const severityMap = {};
     data.forEach(item => {
       severityMap[item.defect_type] = item.severity;
@@ -107,8 +98,7 @@ router.get('/severity-mapping', verifyToken, async (req, res) => {
 
 /**
  * PUT /api/ncr/:miId/status
- * Update or create status for a specific NCR (by MI#)
- * Body: { status: "open" | "in_progress" | "closed" }
+ * Update or create status for a specific NCR
  */
 router.put('/:miId/status', verifyToken, async (req, res) => {
   try {
@@ -116,7 +106,6 @@ router.put('/:miId/status', verifyToken, async (req, res) => {
     const { status } = req.body;
     const employeeId = req.user.employee_id;
     
-    // Validate status value
     const validStatuses = ['open', 'in_progress', 'closed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
@@ -127,7 +116,6 @@ router.put('/:miId/status', verifyToken, async (req, res) => {
     
     const supabase = createSupabaseClient();
     
-    // UPSERT: insert if not exists, update if exists
     const { data, error } = await supabase
       .from('ncr_status')
       .upsert({

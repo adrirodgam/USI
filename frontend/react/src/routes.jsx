@@ -12,8 +12,7 @@ import Checklists from "./pages/Checklists";
 import ComingSoon from "./pages/ComingSoon";
 import ReWork from "./pages/ReWork";
 import Users from "./pages/Users";
-import NCR from "./pages/NCR"; // ✅ conectado al componente real
-
+import NCR from "./pages/NCR"; 
 export const router = createBrowserRouter([
   {
     path: "/",
@@ -29,7 +28,7 @@ export const router = createBrowserRouter([
       { path: "generar-coc/:partNumber", Component: GenerarCOC },
       { path: "generar-coc", Component: GenerarCOC },
       { path: "checklists/:clientId", Component: Checklists },
-      { path: "ncr", Component: NCR },         // ✅ ya no apunta a ComingSoon
+      { path: "ncr", Component: NCR },         
       { path: "rework", Component: ReWork },
       { path: "auditoria", Component: ComingSoon },
       { path: "analiticas", Component: ComingSoon },

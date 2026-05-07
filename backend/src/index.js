@@ -3,29 +3,30 @@ const cors = require('cors')
 const app = express()
 
 // Route imports
-const customersRouter = require('./routes/customers')
-const authRoutes = require('./routes/auth')
-const piecesRoutes = require('./routes/pieces')
-const certificatesRoutes = require('./routes/certificates')
-const usersRoutes = require('./routes/users')
-const checklistsRoutes = require('./routes/checklists')
-const dashboardRoutes = require('./routes/dashboard')
-const reworkRoutes = require('./routes/rework')
+const customersRouter = require('./routes/customers');
+const authRoutes = require('./routes/auth');
+const piecesRoutes = require('./routes/pieces');
+const certificatesRoutes = require('./routes/certificates');
+const usersRoutes = require('./routes/users');
+const checklistsRoutes = require('./routes/checklists');
+const dashboardRoutes = require('./routes/dashboard');
+const reworkRoutes = require('./routes/rework');
+const ncrRoutes = require('./routes/ncr');
 
 
 app.use(cors()) 
 app.use(express.json())
 
 // API Route registration
-app.use('/api/customers', customersRouter)
-app.use('/api/auth', authRoutes)
-app.use('/api/pieces', piecesRoutes)
-app.use('/api/certificates', certificatesRoutes)
-app.use('/api/users', usersRoutes)
-app.use('/api/checklists', checklistsRoutes)
+app.use('/api/customers', customersRouter);
+app.use('/api/auth', authRoutes);
+app.use('/api/pieces', piecesRoutes);
+app.use('/api/certificates', certificatesRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/checklists', checklistsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/rework', reworkRoutes)
-
+app.use('/api/rework', reworkRoutes);
+app.use('/api/ncr', ncrRoutes);
 
 console.log('Certificates registered')
 

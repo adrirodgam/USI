@@ -1,63 +1,47 @@
+// frontend/react/src/api/ncr.js
+
+const API_BASE = `${import.meta.env.VITE_API_URL}/api/ncr`; // ✅ consistente con el resto del proyecto
+
+const getAuthHeader = () => {
+  const token = localStorage.getItem('token');
+  return { Authorization: `Bearer ${token}` };
+};
+
 /**
- * NCR API Client
- * Handles all NCR-related API calls to the backend
- */
-
-import axios from 'axios';
-
-const API_BASE = '/api/ncr';
-
-/**
- * Get raw Smartsheet data for NCRs
- * @returns {Promise<Object>} Raw sheet data from Smartsheet
+ * GET /api/ncr
+ * Retorna el sheet crudo de Smartsheet
  */
 export const getNCRSheet = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(API_BASE, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data.data;
-  } catch (error) {
-    console.error('Error fetching NCR sheet:', error);
-    throw error;
-  }
+  const response = await fetch(API_BASE, { headers: getAuthHeader() });
+  if (!response.ok) throw new Error('Error al obtener NCR sheet');
+  const json = await response.json();
+  return json.data; // { columns, rows }
 };
 
 /**
- * Get all NCR statuses from Supabase
- * @returns {Promise<Object>} Status map: { "MI2026-0001": "open", ... }
+ * GET /api/ncr/statuses
+ * Retorna mapa de statuses desde Supabase: { "MI2026-0001": "open", ... }
  */
 export const getNCRStatuses = async () => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.get(`${API_BASE}/statuses`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    return response.data.data;
-  } catch (error) {
-    console.error('Error fetching NCR statuses:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_BASE}/statuses`, { headers: getAuthHeader() });
+  if (!response.ok) throw new Error('Error al obtener statuses de NCR');
+  const json = await response.json();
+  return json.data; // {}  si no hay registros aún — no crashea
 };
 
 /**
- * Update status for a specific NCR
- * @param {string} miId - The MI# from Smartsheet (e.g., "MI2026-0001")
- * @param {string} status - New status: 'open', 'in_progress', or 'closed'
- * @returns {Promise<Object>} Updated status record
+ * PUT /api/ncr/:miId/status
+ * Actualiza el status de un NCR en Supabase
+ * @param {string} miId  - ID del MI en Smartsheet (ej: "MI2026-0001")
+ * @param {string} status - 'open' | 'in_progress' | 'closed'
  */
 export const updateNCRStatus = async (miId, status) => {
-  try {
-    const token = localStorage.getItem('token');
-    const response = await axios.put(
-      `${API_BASE}/${miId}/status`,
-      { status },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    return response.data.data;
-  } catch (error) {
-    console.error('Error updating NCR status:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_BASE}/${miId}/status`, {
+    method: 'PUT',
+    headers: { ...getAuthHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) throw new Error('Error al actualizar status de NCR');
+  const json = await response.json();
+  return json.data;
 };

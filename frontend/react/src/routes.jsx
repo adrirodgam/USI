@@ -1,3 +1,5 @@
+// frontend/react/src/routes.jsx
+
 import { createBrowserRouter } from "react-router-dom";
 import Login from "./pages/Login";
 import DashboardLayout from "./components/DashboardLayout";
@@ -9,7 +11,8 @@ import GenerarCOC from "./pages/GenerateCOC";
 import Checklists from "./pages/Checklists";
 import ComingSoon from "./pages/ComingSoon";
 import ReWork from "./pages/ReWork";
-import Users from "./pages/Users"; // <-- Added
+import Users from "./pages/Users";
+import NCR from "./pages/NCR"; // ✅ conectado al componente real
 
 export const router = createBrowserRouter([
   {
@@ -26,12 +29,12 @@ export const router = createBrowserRouter([
       { path: "generar-coc/:partNumber", Component: GenerarCOC },
       { path: "generar-coc", Component: GenerarCOC },
       { path: "checklists/:clientId", Component: Checklists },
-      { path: "ncr", Component: ComingSoon },
+      { path: "ncr", Component: NCR },         // ✅ ya no apunta a ComingSoon
       { path: "rework", Component: ReWork },
       { path: "auditoria", Component: ComingSoon },
       { path: "analiticas", Component: ComingSoon },
       { path: "trazabilidad", Component: ComingSoon },
-      { path: "usuarios", Component: Users }, 
+      { path: "usuarios", Component: Users },
       { path: "configuracion", Component: ComingSoon },
     ],
   },

@@ -1,146 +1,93 @@
-/**
- * NCR Routes - Smartsheet + Supabase Status Tracker
- */
+// backend/src/routes/ncr.js
 
 const express = require('express');
 const router = express.Router();
 const { getSheet } = require('../services/smartsheet');
-const { createSupabaseClient } = require('../services/supabase');
-const { verifyToken } = require('../middleware/auth');  // ← CORREGIDO (sin .middleware)
+const supabaseAdmin = require('../services/supabaseAdmin'); // ✅ instancia directa, no destructuring
+const verifyToken = require('../middleware/auth.middleware'); // ✅ default export, sin destructuring
 
-// Sheet ID for NCR Manufacturing Issues Log
 const NCR_SHEET_ID = '7886010277908356';
 
 /**
  * GET /api/ncr
- * Returns RAW Smartsheet data (no parsing)
+ * Retorna el sheet crudo de Smartsheet (columns + rows)
  */
 router.get('/', verifyToken, async (req, res) => {
   try {
     const sheetData = await getSheet(NCR_SHEET_ID);
-    
-    res.json({
-      success: true,
-      data: sheetData
-    });
+    res.json({ success: true, data: sheetData });
   } catch (error) {
-    console.error('Error fetching NCR sheet:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch NCR data from Smartsheet'
-    });
+    console.error('Error fetching NCR sheet:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch NCR data from Smartsheet' });
   }
 });
 
 /**
  * GET /api/ncr/statuses
- * Returns all statuses from Supabase as a map
+ * Retorna todos los statuses guardados en Supabase como un mapa { mi_id: status }
  */
 router.get('/statuses', verifyToken, async (req, res) => {
   try {
-    const supabase = createSupabaseClient();
-    
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('ncr_status')
       .select('mi_id, status');
-    
+
     if (error) throw error;
-    
+
     const statusMap = {};
     data.forEach(record => {
       statusMap[record.mi_id] = record.status;
     });
-    
-    res.json({
-      success: true,
-      data: statusMap
-    });
-  } catch (error) {
-    console.error('Error fetching NCR statuses:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch statuses from database'
-    });
-  }
-});
 
-/**
- * GET /api/ncr/severity-mapping
- * Returns severity mapping for defect types
- */
-router.get('/severity-mapping', verifyToken, async (req, res) => {
-  try {
-    const supabase = createSupabaseClient();
-    
-    const { data, error } = await supabase
-      .from('ncr_severity_mapping')
-      .select('defect_type, severity');
-    
-    if (error) throw error;
-    
-    const severityMap = {};
-    data.forEach(item => {
-      severityMap[item.defect_type] = item.severity;
-    });
-    
-    res.json({
-      success: true,
-      data: severityMap
-    });
+    res.json({ success: true, data: statusMap });
   } catch (error) {
-    console.error('Error fetching severity mapping:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch severity mapping'
-    });
+    console.error('Error fetching NCR statuses:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to fetch statuses from database' });
   }
 });
 
 /**
  * PUT /api/ncr/:miId/status
- * Update or create status for a specific NCR
+ * Upsert del status de un NCR en Supabase
+ * Body: { status: 'open' | 'in_progress' | 'closed' }
  */
 router.put('/:miId/status', verifyToken, async (req, res) => {
   try {
     const { miId } = req.params;
     const { status } = req.body;
     const employeeId = req.user.employee_id;
-    
+
     const validStatuses = ['open', 'in_progress', 'closed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        error: `Status inválido. Debe ser uno de: ${validStatuses.join(', ')}`
       });
     }
-    
-    const supabase = createSupabaseClient();
-    
-    const { data, error } = await supabase
+
+    const { data, error } = await supabaseAdmin
       .from('ncr_status')
-      .upsert({
-        mi_id: miId,
-        status: status,
-        updated_by: employeeId,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'mi_id'
-      })
+      .upsert(
+        {
+          mi_id: miId,
+          status: status,
+          updated_by: employeeId,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'mi_id' }
+      )
       .select();
-    
+
     if (error) throw error;
-    
+
     res.json({
       success: true,
       data: data[0],
-      message: `Status updated to "${status}" for NCR ${miId}`
+      message: `Status actualizado a "${status}" para NCR ${miId}`
     });
   } catch (error) {
-    console.error('Error updating NCR status:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update NCR status'
-    });
+    console.error('Error updating NCR status:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to update NCR status' });
   }
 });
 

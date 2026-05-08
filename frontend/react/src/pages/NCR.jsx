@@ -171,10 +171,10 @@ export default function NCR() {
   // ── KPIs ───────────────────────────────────────────────────────────────────
   const total   = activeData.length;
 
-  const todayStr = today.toDateString();
+  const todayStr = today.toISOString().split('T')[0]; // "2026-05-08"
   const countToday = activeData.filter(n => {
     if (!n.reportedDate) return false;
-    return new Date(n.reportedDate).toDateString() === todayStr;
+    return String(n.reportedDate).slice(0, 10) === todayStr;
   }).length;
 
   const countThisWeek = activeData.filter(n => {

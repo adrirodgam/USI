@@ -41,12 +41,3 @@ export const updateNCRStatus = async (miId, status, token) => {
   const json = await response.json();
   return json.data;
 };
-
-router.get('/debug', verifyToken, async (req, res) => {
-  const sheetData = await getSheet(NCR_SHEET_ID);
-  res.json({
-    totalRows: sheetData.totalRowCount,
-    rowsReturned: sheetData.rows?.length,
-    lastRow: sheetData.rows?.[sheetData.rows.length - 1]
-  });
-});

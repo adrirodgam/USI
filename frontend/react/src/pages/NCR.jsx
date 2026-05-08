@@ -31,18 +31,16 @@ const COLUMN_TITLES = {
 };
 
 const AREA_COLORS = {
-  'Machining':          '#3B82F6',
-  'Powdercoat':         '#8B5CF6',
-  'Incoming':           '#EF4444',
-  'Welding':            '#F59E0B',
-  'Assembly':           '#10B981',
-  'Sheet Metal':        '#EC4899',
-  'Rectificado':        '#06B6D4',
-  'Proveedor':          '#F97316',
-  'Ensamble':           '#10B981',
-  'Ensamble Maquinado': '#14B8A6',
-  'Maquinado':          '#3B82F6',
-  'Soldadura':          '#F59E0B',
+  'SHEET METAL':        '#EC4899',
+  'MAQUINADO':          '#3B82F6',
+  'INCOMING':           '#EF4444',
+  'SOLDADURA':          '#F59E0B',
+  'ENSAMBLE':           '#10B981',
+  'ENSAMBLE MAQUINADO': '#14B8A6',
+  'POWDERCOAT':         '#8B5CF6',
+  'PROVEEDOR':          '#F97316',
+  'RECTIFICADO':        '#06B6D4',
+  'ALMACEN':            '#64748B',
 };
 
 const getAreaColor = (area) => AREA_COLORS[area] || '#94A3B8';
@@ -116,7 +114,7 @@ export default function NCR() {
   const [searchTerm,   setSearchTerm]   = useState('');
   const [selectedArea, setSelectedArea] = useState(null);
   const [filterPeriod, setFilterPeriod] = useState('General');
-  const [filterOrder,  setFilterOrder]  = useState('Nuevo → Viejo');
+  const [filterOrder,  setFilterOrder]  = useState('desc');
   const [currentPage,  setCurrentPage]  = useState(1);
 
   const currentDate = new Date().toLocaleDateString('es-MX', {
@@ -283,7 +281,7 @@ export default function NCR() {
     return filtered.sort((a, b) => {
       const dateA = new Date(a.reportedDate);
       const dateB = new Date(b.reportedDate);
-      return filterOrder === 'Nuevo → Viejo' ? dateB - dateA : dateA - dateB;
+      return filterOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
   }, [activeData, searchTerm, selectedArea, filterOrder]);
 
@@ -343,7 +341,7 @@ export default function NCR() {
     if (!active || !payload?.length) return null;
     return (
       <div style={tooltipStyle}>
-        <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B', marginBottom:4 }}>Semana juliana {label}</p>
+        <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B', marginBottom:4 }}>Semana {label}</p>
         <p style={{ fontFamily:'var(--font-body)', fontSize:15, fontWeight:700, color:'#8B5CF6' }}>
           {payload[0].value} NCR{payload[0].value !== 1 ? 's' : ''}
         </p>
@@ -375,8 +373,7 @@ export default function NCR() {
             onClick={() => {
               const url = import.meta.env.VITE_SMARTSHEET_NCR_FORM_URL;
               if (url) window.open(url, '_blank');
-              else alert('Configura VITE_SMARTSHEET_NCR_FORM_URL en tu .env');
-            }}
+              }}
             style={{ height:36, padding:'0 16px', borderRadius:8, background:'linear-gradient(135deg,#3B82F6,#2563EB)', color:'white', border:'none', cursor:'pointer', fontFamily:'var(--font-body)', fontWeight:600, fontSize:13, display:'flex', alignItems:'center', gap:6 }}>
             <ExternalLink size={14}/> Registrar NCR
           </button>
@@ -494,7 +491,7 @@ export default function NCR() {
               </div>
               <div>
                 <h3 style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:17, color:'#0F172A' }}>Tendencia</h3>
-                <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8' }}>Últimas 8 semanas julianas</p>
+                <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8' }}>Últimas 8 semanas</p>
               </div>
             </div>
             <ResponsiveContainer width="100%" height={280}>
@@ -545,8 +542,8 @@ export default function NCR() {
               </div>
               <select value={filterOrder} onChange={e => setFilterOrder(e.target.value)}
                 style={{ height:44, padding:'0 16px', borderRadius:12, border:'2px solid #E2E8F0', background:'#F8FAFC', fontFamily:'var(--font-body)', fontSize:14, color:'#0F172A', fontWeight:500, cursor:'pointer' }}>
-                <option>Nuevo → Viejo</option>
-                <option>Viejo → Nuevo</option>
+                <option value="desc">Más recientes </option>
+                <option value="asc">Más antiguos</option>
               </select>
               <button onClick={handleExport}
                 style={{ height:44, padding:'0 24px', borderRadius:12, background:'linear-gradient(135deg,#10B981,#059669)', color:'white', border:'none', cursor:'pointer', fontFamily:'var(--font-body)', fontWeight:600, fontSize:13, display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 12px rgba(16,185,129,0.25)' }}>
@@ -606,7 +603,7 @@ export default function NCR() {
                         </div>
                         {ncr.reportedDate && (
                           <div style={{ fontFamily:'var(--font-body)', fontSize:11, color:'#94A3B8', marginTop:2 }}>
-                            S{getWeekNumber(new Date(ncr.reportedDate))}
+                            Semana {getWeekNumber(new Date(ncr.reportedDate))}
                           </div>
                         )}
                       </td>

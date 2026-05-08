@@ -7,7 +7,8 @@ const WORKSPACE_ID = '8187746641569668';
  
 async function getSheet(sheetId) {
   const response = await axios.get(`${BASE_URL}/sheets/${sheetId}`, {
-    headers: { Authorization: `Bearer ${SMARTSHEET_TOKEN}` }
+    headers: { Authorization: `Bearer ${SMARTSHEET_TOKEN}` },
+    params: { pageSize: 10000, page: 1 }
   })
   return response.data
 }

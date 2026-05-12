@@ -647,21 +647,7 @@ export default function NCR() {
               )}
             </div>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart
-                data={trendData}
-                onClick={(chartData) => {
-                  if (!chartData || !chartData.activePayload) return;
-                  const point = chartData.activePayload[0]?.payload;
-                  if (!point) return;
-                  if (selectedChartWeek &&
-                    (point.type === 'day' ? selectedChartWeek.dateStr === point.dateStr : selectedChartWeek.weekNum === point.weekNum)) {
-                    setSelectedChartWeek(null);
-                  } else {
-                    setSelectedChartWeek(point);
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-              >
+              <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)"/>
                 <XAxis dataKey="week" style={{ fontFamily:'var(--font-body)', fontSize:11, fill:'#64748B' }}/>
                 <YAxis style={{ fontFamily:'var(--font-body)', fontSize:11, fill:'#64748B' }} allowDecimals={false}/>
@@ -671,20 +657,45 @@ export default function NCR() {
                   dot={(props) => {
                     const { cx, cy, payload } = props;
                     const isSelected = selectedChartWeek &&
-                      (payload.type === 'day' ? selectedChartWeek.dateStr === payload.dateStr : selectedChartWeek.weekNum === payload.weekNum);
+                      (payload.type === 'day'
+                        ? selectedChartWeek.dateStr === payload.dateStr
+                        : selectedChartWeek.weekNum === payload.weekNum);
+                    const handleDotClick = () => {
+                      if (isSelected) {
+                        setSelectedChartWeek(null);
+                      } else {
+                        setSelectedChartWeek(payload);
+                      }
+                    };
                     return (
                       <circle
                         key={`dot-${payload.week}`}
                         cx={cx} cy={cy}
-                        r={isSelected ? 8 : 5}
+                        r={isSelected ? 9 : 6}
                         fill={isSelected ? '#7C3AED' : '#8B5CF6'}
-                        stroke={isSelected ? '#5B21B6' : 'none'}
-                        strokeWidth={isSelected ? 2 : 0}
+                        stroke={isSelected ? '#5B21B6' : '#fff'}
+                        strokeWidth={2}
+                        onClick={handleDotClick}
                         style={{ cursor: 'pointer', filter: isSelected ? 'drop-shadow(0 0 6px #8B5CF6)' : 'none' }}
                       />
                     );
                   }}
-                  activeDot={{ r:7, fill:'#7C3AED' }}
+                  activeDot={(props) => {
+                    const { cx, cy, payload } = props;
+                    const isSelected = selectedChartWeek &&
+                      (payload.type === 'day'
+                        ? selectedChartWeek.dateStr === payload.dateStr
+                        : selectedChartWeek.weekNum === payload.weekNum);
+                    return (
+                      <circle
+                        cx={cx} cy={cy} r={9}
+                        fill={isSelected ? '#5B21B6' : '#7C3AED'}
+                        stroke="#fff" strokeWidth={2}
+                        onClick={() => isSelected ? setSelectedChartWeek(null) : setSelectedChartWeek(payload)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    );
+                  }}
                 />
               </LineChart>
             </ResponsiveContainer>

@@ -125,9 +125,10 @@ export default function NCR() {
   const [error,        setError]        = useState(null);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [selectedArea, setSelectedArea] = useState(null);
-  const [filterPeriod, setFilterPeriod] = useState('General');
-  const [filterOrder,  setFilterOrder]  = useState('desc');
-  const [currentPage,  setCurrentPage]  = useState(1);
+  const [filterPeriod,  setFilterPeriod]  = useState('General');
+  const [filterOrder,   setFilterOrder]   = useState('desc');
+  const [currentPage,   setCurrentPage]   = useState(1);
+  const [selectedWeek,  setSelectedWeek]  = useState(null); // { week: 'S20', weekNum: 20 }
 
   const currentDate = new Date().toLocaleDateString('es-MX', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -138,10 +139,9 @@ export default function NCR() {
     try {
       setError(null);
       const CACHE_KEY = 'ncr_cache';
-      const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+      const CACHE_TTL = 2 * 60 * 1000;
       const now = Date.now();
 
-      // Use sessionStorage cache to avoid redundant heavy fetches
       if (!force) {
         try {
           const cached = sessionStorage.getItem(CACHE_KEY);
@@ -166,7 +166,7 @@ export default function NCR() {
       } catch {}
     } catch (err) {
       console.error('Error fetching NCR data:', err);
-      setError('Error al cargar los datos de NCR');
+      setError('Error al cargar los datos de NCR. Los datos pueden estar desactualizados.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -174,11 +174,34 @@ export default function NCR() {
   }, [token]);
 
   useEffect(() => {
-    if (token) {
-      fetchData();
-      const interval = setInterval(fetchData, 60000);
-      return () => clearInterval(interval);
-    }
+    if (!token) return;
+
+    fetchData();
+    const interval = setInterval(() => fetchData(), 60000);
+
+    // Re-fetch when tab becomes visible after being hidden (solves freeze-on-idle)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const cached = sessionStorage.getItem('ncr_cache');
+          if (!cached) { fetchData(true); return; }
+          const { ts } = JSON.parse(cached);
+          if (Date.now() - ts > 2 * 60 * 1000) fetchData(true);
+        } catch { fetchData(true); }
+      }
+    };
+
+    // Re-fetch when network reconnects
+    const handleOnline = () => fetchData(true);
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
   }, [fetchData, token]);
 
   const handleRefresh = () => { setRefreshing(true); fetchData(true); };
@@ -312,7 +335,12 @@ export default function NCR() {
         n.customer.toLowerCase().includes(q) ||
         n.description.toLowerCase().includes(q);
       const matchArea = !selectedArea || n.area === selectedArea;
-      return matchSearch && matchArea;
+      const matchWeek = !selectedWeek || (() => {
+        if (!n.reportedDate) return false;
+        const d = parseLocalDate(n.reportedDate);
+        return d && getWeekNumber(d) === selectedWeek.weekNum && d.getFullYear() === currentYear;
+      })();
+      return matchSearch && matchArea && matchWeek;
     });
 
     return filtered.sort((a, b) => {
@@ -323,7 +351,7 @@ export default function NCR() {
   }, [activeData, searchTerm, selectedArea, filterOrder]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedArea, filterPeriod, filterOrder]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedArea, selectedWeek, filterPeriod, filterOrder]);
 
   const totalPages   = Math.ceil(filteredData.length / PAGE_SIZE);
   const paginatedData = filteredData.slice(
@@ -528,18 +556,48 @@ export default function NCR() {
               </div>
               <div>
                 <h3 style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:17, color:'#0F172A' }}>Tendencia</h3>
-                <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8' }}>Últimas 8 semanas</p>
+                <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8' }}>
+                  {selectedWeek ? `Filtrando: ${selectedWeek.week}` : 'Haz clic en una semana para filtrar'}
+                </p>
               </div>
+              {selectedWeek && (
+                <button onClick={() => setSelectedWeek(null)}
+                  style={{ marginLeft:'auto', padding:'4px 12px', borderRadius:8, border:'1px solid #E2E8F0', background:'white', color:'#64748B', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                  ✕ {selectedWeek.week}
+                </button>
+              )}
             </div>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={trendData}>
+              <LineChart data={trendData} onClick={(e) => {
+                if (e && e.activePayload && e.activePayload.length) {
+                  const point = e.activePayload[0].payload;
+                  setSelectedWeek(prev =>
+                    prev && prev.weekNum === point.weekNum ? null : { week: point.week, weekNum: point.weekNum }
+                  );
+                }
+              }} style={{ cursor: 'pointer' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)"/>
                 <XAxis dataKey="week" style={{ fontFamily:'var(--font-body)', fontSize:11, fill:'#64748B' }}/>
                 <YAxis style={{ fontFamily:'var(--font-body)', fontSize:11, fill:'#64748B' }} allowDecimals={false}/>
                 <Tooltip content={<TrendTooltip/>}/>
                 <Line
                   type="monotone" dataKey="count" stroke="#8B5CF6" strokeWidth={3}
-                  dot={{ fill:'#8B5CF6', r:5 }} activeDot={{ r:7, fill:'#7C3AED' }}/>
+                  dot={(props) => {
+                    const { cx, cy, payload } = props;
+                    const isSelected = selectedWeek && selectedWeek.weekNum === payload.weekNum;
+                    return (
+                      <circle
+                        key={payload.week}
+                        cx={cx} cy={cy}
+                        r={isSelected ? 9 : 5}
+                        fill={isSelected ? '#7C3AED' : '#8B5CF6'}
+                        stroke={isSelected ? '#5B21B6' : '#fff'}
+                        strokeWidth={isSelected ? 3 : 2}
+                        style={{ cursor:'pointer', filter: isSelected ? 'drop-shadow(0 0 6px #8B5CF680)' : 'none' }}
+                      />
+                    );
+                  }}
+                  activeDot={{ r:9, fill:'#7C3AED', stroke:'#5B21B6', strokeWidth:3, style:{ cursor:'pointer' } }}/>
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -560,15 +618,24 @@ export default function NCR() {
                   <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8', marginTop:2 }}>
                     {filteredData.length} de {ncrData.length} registros
                     {selectedArea && ` · Área: ${selectedArea}`}
+                    {selectedWeek && ` · Semana: ${selectedWeek.week}`}
                   </p>
                 </div>
               </div>
+              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              {selectedWeek && (
+                <button onClick={() => setSelectedWeek(null)}
+                  style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #8B5CF640', background:'#8B5CF610', color:'#7C3AED', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                  ✕ Semana {selectedWeek.week}
+                </button>
+              )}
               {selectedArea && (
                 <button onClick={() => setSelectedArea(null)}
                   style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #E2E8F0', background:'white', color:'#64748B', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                  Limpiar filtro de área
+                  ✕ Área: {selectedArea}
                 </button>
               )}
+              </div>
             </div>
             <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
               <div style={{ flex:1, position:'relative', minWidth:250 }}>

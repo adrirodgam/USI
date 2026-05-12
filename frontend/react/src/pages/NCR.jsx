@@ -61,6 +61,15 @@ const getWeekNumber = (date) => {
 // =====================================================
 // Parse Smartsheet data
 // =====================================================
+
+// "2026-05-12" -> local midnight Date (avoids UTC offset shifting the day)
+const parseLocalDate = (str) => {
+  if (!str) return null;
+  const [y, m, d] = String(str).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
 const parseNCRSheet = (sheet) => {
   if (!sheet || !sheet.columns || !sheet.rows) return [];
 
@@ -82,6 +91,9 @@ const parseNCRSheet = (sheet) => {
     const miNumber = cellMap[colIds.MI_NUMBER] || '';
     if (!miNumber) continue;
 
+    // Store date as "YYYY-MM-DD" string — no UTC conversion
+    const dateStr = String(cellMap[colIds.DATE] || '').slice(0, 10);
+
     parsed.push({
       id:           row.id,
       miId:         String(miNumber),
@@ -91,14 +103,14 @@ const parseNCRSheet = (sheet) => {
       description:  cellMap[colIds.DEFECT]       || '',
       defectType:   cellMap[colIds.DEFECT_TYPE]  || '',
       reportedBy:   cellMap[colIds.INITIATOR]    || '',
-      reportedDate: cellMap[colIds.DATE]         || '',
+      reportedDate: dateStr,
       woNumber:     cellMap[colIds.WO_NUMBER]    || '',
       qtyRejInsp:   cellMap[colIds.QTY_REJ_INSP] || 0,
     });
   }
 
-  // Sort newest first by default
-  return parsed.sort((a, b) => new Date(b.reportedDate) - new Date(a.reportedDate));
+  // Sort newest first — ISO string comparison is safe for YYYY-MM-DD
+  return parsed.sort((a, b) => (b.reportedDate > a.reportedDate ? 1 : b.reportedDate < a.reportedDate ? -1 : 0));
 };
 
 // =====================================================
@@ -122,11 +134,36 @@ export default function NCR() {
   });
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     try {
       setError(null);
+      const CACHE_KEY = 'ncr_cache';
+      const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+      const now = Date.now();
+
+      // Use sessionStorage cache to avoid redundant heavy fetches
+      if (!force) {
+        try {
+          const cached = sessionStorage.getItem(CACHE_KEY);
+          if (cached) {
+            const { data, ts } = JSON.parse(cached);
+            if (now - ts < CACHE_TTL) {
+              setNcrData(data);
+              setLoading(false);
+              setRefreshing(false);
+              return;
+            }
+          }
+        } catch {}
+      }
+
       const [sheet] = await Promise.all([getNCRSheet(token), getNCRStatuses(token)]);
-      setNcrData(parseNCRSheet(sheet));
+      const parsed = parseNCRSheet(sheet);
+      setNcrData(parsed);
+
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: parsed, ts: now }));
+      } catch {}
     } catch (err) {
       console.error('Error fetching NCR data:', err);
       setError('Error al cargar los datos de NCR');
@@ -144,7 +181,7 @@ export default function NCR() {
     }
   }, [fetchData, token]);
 
-  const handleRefresh = () => { setRefreshing(true); fetchData(); };
+  const handleRefresh = () => { setRefreshing(true); fetchData(true); };
 
   // ── Period filter — applied to metrics AND table ───────────────────────────
   const today = new Date();
@@ -156,8 +193,8 @@ export default function NCR() {
     if (filterPeriod === 'General') return ncrData;
     return ncrData.filter(n => {
       if (!n.reportedDate) return false;
-      const d = new Date(n.reportedDate);
-      if (isNaN(d)) return false;
+      const d = parseLocalDate(n.reportedDate);
+      if (!d) return false;
       if (filterPeriod === 'Semanal') {
         return getWeekNumber(d) === currentWeek && d.getFullYear() === currentYear;
       }
@@ -179,14 +216,14 @@ export default function NCR() {
 
   const countThisWeek = activeData.filter(n => {
     if (!n.reportedDate) return false;
-    const d = new Date(n.reportedDate);
-    return getWeekNumber(d) === currentWeek && d.getFullYear() === currentYear;
+    const d = parseLocalDate(n.reportedDate);
+    return d && getWeekNumber(d) === currentWeek && d.getFullYear() === currentYear;
   }).length;
 
   const countLastWeek = ncrData.filter(n => {
     if (!n.reportedDate) return false;
-    const d = new Date(n.reportedDate);
-    return getWeekNumber(d) === currentWeek - 1 && d.getFullYear() === currentYear;
+    const d = parseLocalDate(n.reportedDate);
+    return d && getWeekNumber(d) === currentWeek - 1 && d.getFullYear() === currentYear;
   }).length;
 
   const weekVariation = countThisWeek - countLastWeek;
@@ -241,8 +278,8 @@ export default function NCR() {
     const weeks = {};
     activeData.forEach(n => {
       if (!n.reportedDate) return;
-      const date = new Date(n.reportedDate);
-      if (isNaN(date)) return;
+      const date = parseLocalDate(n.reportedDate);
+      if (!date) return;
       const weekNum = getWeekNumber(date);
       const year = date.getFullYear();
       const key = `${year}-W${weekNum}`;
@@ -598,7 +635,7 @@ export default function NCR() {
                         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                           <Calendar size={12} style={{ color:'#94A3B8' }}/>
                           <span style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B' }}>
-                            {ncr.reportedDate ? new Date(ncr.reportedDate).toLocaleDateString('es-MX') : '—'}
+                            {ncr.reportedDate ? parseLocalDate(ncr.reportedDate)?.toLocaleDateString('es-MX') ?? '—' : '—'}
                           </span>
                         </div>
                         {ncr.reportedDate && (

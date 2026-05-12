@@ -125,10 +125,12 @@ export default function NCR() {
   const [error,        setError]        = useState(null);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [selectedArea, setSelectedArea] = useState(null);
-  const [filterPeriod,  setFilterPeriod]  = useState('General');
-  const [filterOrder,   setFilterOrder]   = useState('desc');
-  const [currentPage,   setCurrentPage]   = useState(1);
-  const [selectedWeek,  setSelectedWeek]  = useState(null); // { week: 'S20', weekNum: 20 }
+  const [filterPeriod, setFilterPeriod] = useState('General');
+  const [filterOrder,  setFilterOrder]  = useState('desc');
+  const [currentPage,  setCurrentPage]  = useState(1);
+  const [selectedChartWeek, setSelectedChartWeek] = useState(null); // { weekNum, year } | null
+  const [filterExactWeek,   setFilterExactWeek]   = useState('');   // "YYYY-Www" string
+  const [filterExactDay,    setFilterExactDay]     = useState('');   // "YYYY-MM-DD" string
 
   const currentDate = new Date().toLocaleDateString('es-MX', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -139,9 +141,10 @@ export default function NCR() {
     try {
       setError(null);
       const CACHE_KEY = 'ncr_cache';
-      const CACHE_TTL = 2 * 60 * 1000;
+      const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
       const now = Date.now();
 
+      // Use sessionStorage cache to avoid redundant heavy fetches
       if (!force) {
         try {
           const cached = sessionStorage.getItem(CACHE_KEY);
@@ -166,7 +169,7 @@ export default function NCR() {
       } catch {}
     } catch (err) {
       console.error('Error fetching NCR data:', err);
-      setError('Error al cargar los datos de NCR. Los datos pueden estar desactualizados.');
+      setError('Error al cargar los datos de NCR');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -174,34 +177,11 @@ export default function NCR() {
   }, [token]);
 
   useEffect(() => {
-    if (!token) return;
-
-    fetchData();
-    const interval = setInterval(() => fetchData(), 60000);
-
-    // Re-fetch when tab becomes visible after being hidden (solves freeze-on-idle)
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        try {
-          const cached = sessionStorage.getItem('ncr_cache');
-          if (!cached) { fetchData(true); return; }
-          const { ts } = JSON.parse(cached);
-          if (Date.now() - ts > 2 * 60 * 1000) fetchData(true);
-        } catch { fetchData(true); }
-      }
-    };
-
-    // Re-fetch when network reconnects
-    const handleOnline = () => fetchData(true);
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('online', handleOnline);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('online', handleOnline);
-    };
+    if (token) {
+      fetchData();
+      const interval = setInterval(fetchData, 60000);
+      return () => clearInterval(interval);
+    }
   }, [fetchData, token]);
 
   const handleRefresh = () => { setRefreshing(true); fetchData(true); };
@@ -298,6 +278,64 @@ export default function NCR() {
   }, [activeData]);
 
   const trendData = useMemo(() => {
+    if (filterPeriod === 'Semanal') {
+      // Show the 7 days of the current week
+      const days = {};
+      activeData.forEach(n => {
+        if (!n.reportedDate) return;
+        const date = parseLocalDate(n.reportedDate);
+        if (!date) return;
+        if (getWeekNumber(date) !== currentWeek || date.getFullYear() !== currentYear) return;
+        const dayKey = n.reportedDate.slice(0, 10);
+        if (!days[dayKey]) days[dayKey] = { label: date.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' }), count: 0, dateStr: dayKey };
+        days[dayKey].count++;
+      });
+      // Build Mon-Sun of the current week
+      const result = [];
+      const now = new Date();
+      const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1; // Mon=0
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dayOfWeek);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        const key = d.toISOString().slice(0, 10);
+        result.push({
+          week: d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' }),
+          count: days[key]?.count || 0,
+          dateStr: key,
+          type: 'day',
+        });
+      }
+      return result;
+    }
+
+    if (filterPeriod === 'Mensual') {
+      // Show each week of the current month
+      const weeks = {};
+      activeData.forEach(n => {
+        if (!n.reportedDate) return;
+        const date = parseLocalDate(n.reportedDate);
+        if (!date) return;
+        if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) return;
+        const weekNum = getWeekNumber(date);
+        const key = `${currentYear}-W${weekNum}`;
+        if (!weeks[key]) weeks[key] = { week: `S${weekNum}`, count: 0, weekNum, year: currentYear };
+        weeks[key].count++;
+      });
+      // Collect weeks that fall in this month
+      const result = Object.values(weeks).sort((a, b) => a.weekNum - b.weekNum);
+      // If no data, show skeleton of weeks
+      if (result.length === 0) {
+        for (let i = 1; i <= 5; i++) {
+          const w = currentWeek - (today.getDate() > 21 ? 4 - i : i - 1);
+          result.push({ week: `S${w > 0 ? w : w + 52}`, count: 0, weekNum: w, year: currentYear });
+        }
+      }
+      return result.map(r => ({ ...r, type: 'week' }));
+    }
+
+    // General: last 8 weeks
     const weeks = {};
     activeData.forEach(n => {
       if (!n.reportedDate) return;
@@ -309,8 +347,6 @@ export default function NCR() {
       if (!weeks[key]) weeks[key] = { week: `S${weekNum}`, count: 0, weekNum, year };
       weeks[key].count++;
     });
-
-    // Get last 8 weeks from today
     const result = [];
     for (let i = 7; i >= 0; i--) {
       const weekNum = currentWeek - i;
@@ -318,11 +354,13 @@ export default function NCR() {
       result.push({
         week: `S${weekNum > 0 ? weekNum : weekNum + 52}`,
         count: weeks[key]?.count || 0,
-        weekNum,
+        weekNum: weekNum > 0 ? weekNum : weekNum + 52,
+        year: currentYear,
+        type: 'week',
       });
     }
     return result;
-  }, [activeData, currentWeek, currentYear]);
+  }, [activeData, currentWeek, currentYear, currentMonth, filterPeriod]);
 
   // ── Filters + Sort + Pagination ────────────────────────────────────────────
   const filteredData = useMemo(() => {
@@ -335,12 +373,39 @@ export default function NCR() {
         n.customer.toLowerCase().includes(q) ||
         n.description.toLowerCase().includes(q);
       const matchArea = !selectedArea || n.area === selectedArea;
-      const matchWeek = !selectedWeek || (() => {
-        if (!n.reportedDate) return false;
-        const d = parseLocalDate(n.reportedDate);
-        return d && getWeekNumber(d) === selectedWeek.weekNum && d.getFullYear() === currentYear;
-      })();
-      return matchSearch && matchArea && matchWeek;
+
+      // Chart week click filter
+      let matchChartWeek = true;
+      if (selectedChartWeek) {
+        if (selectedChartWeek.type === 'day') {
+          matchChartWeek = n.reportedDate === selectedChartWeek.dateStr;
+        } else {
+          const date = parseLocalDate(n.reportedDate);
+          if (!date) { matchChartWeek = false; }
+          else {
+            matchChartWeek =
+              getWeekNumber(date) === selectedChartWeek.weekNum &&
+              date.getFullYear() === selectedChartWeek.year;
+          }
+        }
+      }
+
+      // Exact week filter (from picker)
+      let matchExactWeek = true;
+      if (filterExactWeek) {
+        // filterExactWeek format: "YYYY-Www"
+        const [wy, ww] = filterExactWeek.split('-W').map(Number);
+        const date = parseLocalDate(n.reportedDate);
+        matchExactWeek = date && getWeekNumber(date) === ww && date.getFullYear() === wy;
+      }
+
+      // Exact day filter (from picker)
+      let matchExactDay = true;
+      if (filterExactDay) {
+        matchExactDay = n.reportedDate === filterExactDay;
+      }
+
+      return matchSearch && matchArea && matchChartWeek && matchExactWeek && matchExactDay;
     });
 
     return filtered.sort((a, b) => {
@@ -348,10 +413,12 @@ export default function NCR() {
       const dateB = new Date(b.reportedDate);
       return filterOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
-  }, [activeData, searchTerm, selectedArea, filterOrder]);
+  }, [activeData, searchTerm, selectedArea, filterOrder, selectedChartWeek, filterExactWeek, filterExactDay]);
 
   // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedArea, selectedWeek, filterPeriod, filterOrder]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedArea, filterPeriod, filterOrder, selectedChartWeek, filterExactWeek, filterExactDay]);
+  // Clear chart selection when period changes
+  useEffect(() => { setSelectedChartWeek(null); }, [filterPeriod]);
 
   const totalPages   = Math.ceil(filteredData.length / PAGE_SIZE);
   const paginatedData = filteredData.slice(
@@ -404,11 +471,17 @@ export default function NCR() {
 
   const TrendTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
+    const point = payload[0].payload;
     return (
       <div style={tooltipStyle}>
-        <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B', marginBottom:4 }}>Semana {label}</p>
+        <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B', marginBottom:4 }}>
+          {point.type === 'day' ? label : `Semana ${label}`}
+        </p>
         <p style={{ fontFamily:'var(--font-body)', fontSize:15, fontWeight:700, color:'#8B5CF6' }}>
           {payload[0].value} NCR{payload[0].value !== 1 ? 's' : ''}
+        </p>
+        <p style={{ fontFamily:'var(--font-body)', fontSize:11, color:'#94A3B8', marginTop:2 }}>
+          Clic para filtrar tabla
         </p>
       </div>
     );
@@ -550,32 +623,45 @@ export default function NCR() {
 
           {/* Chart 2: Tendencia con semanas julianas */}
           <div style={{ background:'rgba(255,255,255,0.9)', backdropFilter:'blur(20px)', borderRadius:20, padding:24, border:'1px solid rgba(255,255,255,0.4)', boxShadow:'0 8px 32px rgba(0,0,0,0.08)' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
-              <div style={{ width:40, height:40, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#8B5CF6,#7C3AED)', color:'white' }}>
-                <TrendingUp size={18}/>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ width:40, height:40, borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,#8B5CF6,#7C3AED)', color:'white' }}>
+                  <TrendingUp size={18}/>
+                </div>
+                <div>
+                  <h3 style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:17, color:'#0F172A' }}>Tendencia</h3>
+                  <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8' }}>
+                    {filterPeriod === 'General' && 'Últimas 8 semanas · clic en punto para filtrar'}
+                    {filterPeriod === 'Semanal' && `Días de la semana ${currentWeek} · clic en punto para filtrar`}
+                    {filterPeriod === 'Mensual' && `Semanas del mes · clic en punto para filtrar`}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:17, color:'#0F172A' }}>Tendencia</h3>
-                <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8' }}>
-                  {selectedWeek ? `Filtrando: ${selectedWeek.week}` : 'Haz clic en una semana para filtrar'}
-                </p>
-              </div>
-              {selectedWeek && (
-                <button onClick={() => setSelectedWeek(null)}
-                  style={{ marginLeft:'auto', padding:'4px 12px', borderRadius:8, border:'1px solid #E2E8F0', background:'white', color:'#64748B', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                  ✕ {selectedWeek.week}
+              {selectedChartWeek && (
+                <button
+                  onClick={() => setSelectedChartWeek(null)}
+                  style={{ padding:'4px 12px', background:'#EF4444', color:'white', border:'none', borderRadius:8, cursor:'pointer', fontSize:12, fontWeight:600 }}
+                >
+                  Limpiar selección
                 </button>
               )}
             </div>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={trendData} onClick={(e) => {
-                if (e && e.activePayload && e.activePayload.length) {
-                  const point = e.activePayload[0].payload;
-                  setSelectedWeek(prev =>
-                    prev && prev.weekNum === point.weekNum ? null : { week: point.week, weekNum: point.weekNum }
-                  );
-                }
-              }} style={{ cursor: 'pointer' }}>
+              <LineChart
+                data={trendData}
+                onClick={(chartData) => {
+                  if (!chartData || !chartData.activePayload) return;
+                  const point = chartData.activePayload[0]?.payload;
+                  if (!point) return;
+                  if (selectedChartWeek &&
+                    (point.type === 'day' ? selectedChartWeek.dateStr === point.dateStr : selectedChartWeek.weekNum === point.weekNum)) {
+                    setSelectedChartWeek(null);
+                  } else {
+                    setSelectedChartWeek(point);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)"/>
                 <XAxis dataKey="week" style={{ fontFamily:'var(--font-body)', fontSize:11, fill:'#64748B' }}/>
                 <YAxis style={{ fontFamily:'var(--font-body)', fontSize:11, fill:'#64748B' }} allowDecimals={false}/>
@@ -584,20 +670,22 @@ export default function NCR() {
                   type="monotone" dataKey="count" stroke="#8B5CF6" strokeWidth={3}
                   dot={(props) => {
                     const { cx, cy, payload } = props;
-                    const isSelected = selectedWeek && selectedWeek.weekNum === payload.weekNum;
+                    const isSelected = selectedChartWeek &&
+                      (payload.type === 'day' ? selectedChartWeek.dateStr === payload.dateStr : selectedChartWeek.weekNum === payload.weekNum);
                     return (
                       <circle
-                        key={payload.week}
+                        key={`dot-${payload.week}`}
                         cx={cx} cy={cy}
-                        r={isSelected ? 9 : 5}
+                        r={isSelected ? 8 : 5}
                         fill={isSelected ? '#7C3AED' : '#8B5CF6'}
-                        stroke={isSelected ? '#5B21B6' : '#fff'}
-                        strokeWidth={isSelected ? 3 : 2}
-                        style={{ cursor:'pointer', filter: isSelected ? 'drop-shadow(0 0 6px #8B5CF680)' : 'none' }}
+                        stroke={isSelected ? '#5B21B6' : 'none'}
+                        strokeWidth={isSelected ? 2 : 0}
+                        style={{ cursor: 'pointer', filter: isSelected ? 'drop-shadow(0 0 6px #8B5CF6)' : 'none' }}
                       />
                     );
                   }}
-                  activeDot={{ r:9, fill:'#7C3AED', stroke:'#5B21B6', strokeWidth:3, style:{ cursor:'pointer' } }}/>
+                  activeDot={{ r:7, fill:'#7C3AED' }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -618,24 +706,60 @@ export default function NCR() {
                   <p style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#94A3B8', marginTop:2 }}>
                     {filteredData.length} de {ncrData.length} registros
                     {selectedArea && ` · Área: ${selectedArea}`}
-                    {selectedWeek && ` · Semana: ${selectedWeek.week}`}
                   </p>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-              {selectedWeek && (
-                <button onClick={() => setSelectedWeek(null)}
-                  style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #8B5CF640', background:'#8B5CF610', color:'#7C3AED', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                  ✕ Semana {selectedWeek.week}
-                </button>
-              )}
               {selectedArea && (
                 <button onClick={() => setSelectedArea(null)}
                   style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #E2E8F0', background:'white', color:'#64748B', fontFamily:'var(--font-body)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                  ✕ Área: {selectedArea}
+                  Limpiar filtro de área
                 </button>
               )}
+            </div>
+            {/* Exact week / day pickers */}
+            <div style={{ display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:12 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <Calendar size={15} style={{ color:'#94A3B8' }}/>
+                <span style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B', fontWeight:600 }}>Filtrar por:</span>
               </div>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B' }}>Semana exacta:</span>
+                <input
+                  type="week"
+                  value={filterExactWeek}
+                  onChange={e => { setFilterExactWeek(e.target.value); setFilterExactDay(''); setSelectedChartWeek(null); }}
+                  style={{ height:36, padding:'0 10px', borderRadius:10, border:'2px solid #E2E8F0', background:'#F8FAFC', fontFamily:'var(--font-body)', fontSize:13, color:'#0F172A', cursor:'pointer' }}
+                />
+                {filterExactWeek && (
+                  <button onClick={() => setFilterExactWeek('')}
+                    style={{ padding:'4px 10px', borderRadius:8, border:'none', background:'#EF4444', color:'white', fontSize:11, fontWeight:600, cursor:'pointer' }}>✕</button>
+                )}
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ fontFamily:'var(--font-body)', fontSize:12, color:'#64748B' }}>Día exacto:</span>
+                <input
+                  type="date"
+                  value={filterExactDay}
+                  onChange={e => { setFilterExactDay(e.target.value); setFilterExactWeek(''); setSelectedChartWeek(null); }}
+                  style={{ height:36, padding:'0 10px', borderRadius:10, border:'2px solid #E2E8F0', background:'#F8FAFC', fontFamily:'var(--font-body)', fontSize:13, color:'#0F172A', cursor:'pointer' }}
+                />
+                {filterExactDay && (
+                  <button onClick={() => setFilterExactDay('')}
+                    style={{ padding:'4px 10px', borderRadius:8, border:'none', background:'#EF4444', color:'white', fontSize:11, fontWeight:600, cursor:'pointer' }}>✕</button>
+                )}
+              </div>
+              {(selectedChartWeek || filterExactWeek || filterExactDay) && (
+                <div style={{ padding:'4px 12px', borderRadius:8, background:'#EDE9FE', color:'#7C3AED', fontSize:12, fontWeight:600, fontFamily:'var(--font-body)' }}>
+                  {selectedChartWeek
+                    ? selectedChartWeek.type === 'day'
+                      ? `📅 Día: ${selectedChartWeek.week}`
+                      : `📅 Semana ${selectedChartWeek.weekNum}`
+                    : filterExactWeek
+                    ? `📅 ${filterExactWeek}`
+                    : `📅 ${filterExactDay}`
+                  }
+                </div>
+              )}
             </div>
             <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
               <div style={{ flex:1, position:'relative', minWidth:250 }}>

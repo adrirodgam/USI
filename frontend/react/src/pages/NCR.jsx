@@ -763,11 +763,11 @@ export default function NCR() {
                 <div style={{ padding:'4px 12px', borderRadius:8, background:'#EDE9FE', color:'#7C3AED', fontSize:12, fontWeight:600, fontFamily:'var(--font-body)' }}>
                   {selectedChartWeek
                     ? selectedChartWeek.type === 'day'
-                      ? `📅 Día: ${selectedChartWeek.week}`
-                      : `📅 Semana ${selectedChartWeek.weekNum}`
+                      ? `Día: ${selectedChartWeek.week}`
+                      : `Semana ${selectedChartWeek.weekNum}`
                     : filterExactWeek
-                    ? `📅 ${filterExactWeek}`
-                    : `📅 ${filterExactDay}`
+                    ? `${filterExactWeek}`
+                    : `${filterExactDay}`
                   }
                 </div>
               )}

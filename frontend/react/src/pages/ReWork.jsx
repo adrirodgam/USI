@@ -248,7 +248,7 @@ export default function ReWork() {
     if (filteredData.length === 0) return;
 
     const rows = filteredData.map((rw) => ({
-      'Fecha:             rw.formDate || 'N/A',
+      'Fecha':                  rw.formDate || 'N/A',
       'No. de Parte':           rw.partNumber,
       'Job Order':              rw.jobOrder,
       'Tipo de ReTrabajo':      rw.reworkType || 'N/A',

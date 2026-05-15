@@ -4,10 +4,11 @@ import TopBar from "../components/TopBar";
 import { getReworks, updateReworkStatus } from "../api/reworkRequest";
 import {
   RotateCcw, TrendingDown, TrendingUp, Clock, CheckCircle,
-  Download, Search, Edit, XCircle, Package, FileText, AlertCircle, RefreshCw,
+  Download, Search, Edit, XCircle, Package, FileText, AlertCircle, RefreshCw, User,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -20,33 +21,33 @@ const parseSmartsheetData = (sheet) => {
 
   sheet.columns.forEach((col) => {
     colMap[col.id] = col.title;
-    // Guardar IDs de columnas clave para escritura
-    if (col.title === 'Estado del proceso:')       columnIds.status   = col.id;
-    if (col.title === 'Hora Muerta Total (hrs)')    columnIds.deadTime = col.id;
+    if (col.title === 'Estado del proceso:')    columnIds.status   = col.id;
+    if (col.title === 'Hora Muerta Total (hrs)') columnIds.deadTime = col.id;
   });
 
   const data = sheet.rows.map((row) => {
-    const obj = { id: row.id }; // ← id preservado
+    const obj = { id: row.id };
     row.cells.forEach((cell) => {
       const title = colMap[cell.columnId];
       if (title) obj[title] = cell.value ?? null;
     });
 
     return {
-      id:             row.id,                                                        // ← fix: id en el objeto final
+      id:             row.id,
       partNumber:     obj['No. de Parte:']                        || '',
       jobOrder:       obj['Job Order:']                           || '',
       quantity:       obj['Cantidad:']                            || 0,
       discrepancy:    obj['Discrepancia:']                        || '',
       area:           obj['Area donde se Realizará el REWORK:']   || '',
       processDetails: obj['Detalles del Proceso:']                || '',
-      reworkType:     obj['Tipo de ReTrabajo']                    || '',             // ← nuevo
+      reworkType:     obj['Tipo de ReTrabajo']                    || '',
       estimatedTime:  parseFloat(obj['Tiempo Estimado de Rework']) || 0,
       registeredDate: obj['Hora de interrupción del proceso:']    || null,
-      assignedDate:   obj['Fecha Asignado:']                      || null,          // ← nuevo
-      status:         obj['Estado del proceso:']                  || 'Pendiente',   // ← fix: nombre real
+      formDate:       obj['Fecha:']                               || null,
+      createdBy:      obj['Creado por:']                          || null,
+      assignedDate:   obj['Fecha Asignado:']                      || null,
+      status:         obj['Estado del proceso:']                  || 'Pendiente',
       deadTimeTotal:  parseFloat(obj['Hora Muerta Total (hrs)'])  || null,
-      // Fechas de transición — se asignan localmente al cambiar status
       areaAssignedDate: null,
       inReviewDate:     null,
       completedDate:    null,
@@ -56,22 +57,36 @@ const parseSmartsheetData = (sheet) => {
   return { data, columnIds };
 };
 
-// SLA por tipo de retrabajo
-const getSLA = (reworkType) => {
-  if (reworkType === 'Retrabajo Menor') return 24;
-  if (reworkType === 'Retrabajo Mayor') return 48;
-  return null;
+// ── Semáforo de urgencia basado en fecha del form ───────────────────────────
+const getUrgencyStatus = (rw) => {
+  if (rw.status === 'Terminado' || !rw.formDate) return null;
+  const limitHours = rw.reworkType === 'Retrabajo Mayor' ? 48 : 24;
+  const elapsedHours = (Date.now() - new Date(rw.formDate)) / (1000 * 60 * 60);
+  if (elapsedHours >= limitHours) return { label: 'Vencido',    color: '#EF4444', bg: '#FEE2E2', border: '#FECACA' };
+  if (elapsedHours >= 6)          return { label: 'Por vencer', color: '#F97316', bg: '#FFF7ED', border: '#FED7AA' };
+  return                           { label: 'En tiempo',  color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' };
 };
 
-// Semáforo de SLA
-const getSLAStatus = (rw) => {
-  const slaHours = getSLA(rw.reworkType);
-  if (!slaHours || !rw.registeredDate || rw.status === 'Terminado') return null;
-  const elapsedHours = (Date.now() - new Date(rw.registeredDate)) / (1000 * 60 * 60);
-  const pct = elapsedHours / slaHours;
-  if (pct >= 1)   return { label: 'Vencido',    color: '#EF4444', bg: '#FEE2E2' };
-  if (pct >= 0.7) return { label: 'Por vencer', color: '#F59E0B', bg: '#FEF3C7' };
-  return           { label: 'En tiempo',  color: '#10B981', bg: '#ECFDF5' };
+// ── Horas muertas por semana ─────────────────────────────────────────────────
+const calcWeeklyDeadTime = (data) => {
+  const weekMap = {};
+  data.forEach((rw) => {
+    if (!rw.deadTimeTotal || !rw.formDate) return;
+    const d = new Date(rw.formDate);
+    // Número de semana ISO
+    const startOfYear = new Date(d.getFullYear(), 0, 1);
+    const weekNum = Math.ceil(((d - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);
+    const key = `S${weekNum}`;
+    weekMap[key] = (weekMap[key] || 0) + rw.deadTimeTotal;
+  });
+
+  // Últimas 8 semanas con datos, o rellenar si hay menos
+  const entries = Object.entries(weekMap)
+    .sort((a, b) => parseInt(a[0].slice(1)) - parseInt(b[0].slice(1)))
+    .slice(-8)
+    .map(([week, hours]) => ({ week, hours: parseFloat(hours.toFixed(2)) }));
+
+  return entries;
 };
 
 const AREA_COLORS = {
@@ -93,12 +108,11 @@ const calculateAreaData = (data) => {
   }));
 };
 
-// Métrica de horas muertas por día con semáforo
 const calcDailyDeadTime = (data) => {
   const today = new Date().toDateString();
   const todayReworks = data.filter((rw) => {
-    if (!rw.registeredDate) return false;
-    return new Date(rw.registeredDate).toDateString() === today;
+    if (!rw.formDate) return false;
+    return new Date(rw.formDate).toDateString() === today;
   });
   const totalHours = data.reduce((s, r) => s + (r.deadTimeTotal || 0), 0);
 
@@ -119,19 +133,17 @@ const calculateKPIs = (data) => {
   const pending    = data.filter((r) => r.status === 'Pendiente').length;
   const inProcess  = data.filter((r) => r.status === 'En Proceso').length;
   const completed  = data.filter((r) => r.status === 'Terminado').length;
-  // Sum of actual dead time hours from completed reworks
   const totalDeadHours = data.reduce((s, r) => s + (r.deadTimeTotal || 0), 0);
-  // Average dead time only from rows that have a deadTimeTotal value
   const completedWithDeadTime = data.filter((r) => r.deadTimeTotal !== null);
   const avgDeadTime = completedWithDeadTime.length > 0
     ? (completedWithDeadTime.reduce((s, r) => s + r.deadTimeTotal, 0) / completedWithDeadTime.length).toFixed(1)
     : '--';
 
   return [
-    { label: 'Total de ReWorks',      value: total.toString(),            trend: 'Registros activos',                                                       trendPositive: null, icon: <RotateCcw size={22} />,   bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)' },
-    { label: 'Pendientes',            value: pending.toString(),          trend: 'Sin asignar aún',                                                         trendPositive: null, icon: <AlertCircle size={22} />, bgGradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' },
-    { label: 'En Proceso',            value: inProcess.toString(),        trend: 'Área y tiempo asignados',                                                 trendPositive: null, icon: <Clock size={22} />,       bgGradient: 'linear-gradient(135deg, #06B6D4 0%, #0891B2 100%)' },
-    { label: 'Terminados',            value: completed.toString(),        trend: total > 0 ? `${Math.round((completed / total) * 100)}% completado` : '0%', trendPositive: true, icon: <CheckCircle size={22} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' },
+    { label: 'Total de ReWorks',      value: total.toString(),                trend: 'Registros activos',                                                       trendPositive: null, icon: <RotateCcw size={22} />,   bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)' },
+    { label: 'Pendientes',            value: pending.toString(),              trend: 'Sin asignar aún',                                                         trendPositive: null, icon: <AlertCircle size={22} />, bgGradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' },
+    { label: 'En Proceso',            value: inProcess.toString(),            trend: 'Área y tiempo asignados',                                                 trendPositive: null, icon: <Clock size={22} />,       bgGradient: 'linear-gradient(135deg, #06B6D4 0%, #0891B2 100%)' },
+    { label: 'Terminados',            value: completed.toString(),            trend: total > 0 ? `${Math.round((completed / total) * 100)}% completado` : '0%', trendPositive: true, icon: <CheckCircle size={22} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' },
     { label: 'Horas Muertas Totales', value: `${totalDeadHours.toFixed(1)}h`, trend: completedWithDeadTime.length > 0 ? `${avgDeadTime}h promedio` : 'Sin datos', trendPositive: null, icon: <TrendingDown size={22} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' },
   ];
 };
@@ -144,16 +156,6 @@ const getStatusStyle = (status) => {
     case 'Terminado':   return { bg: '#ECFDF5', color: '#10B981', border: '#A7F3D0' };
     default:            return { bg: '#F1F5F9', color: '#64748B', border: '#E2E8F0' };
   }
-};
-
-const calculateTimeDiff = (startDate, endDate) => {
-  if (!startDate || !endDate) return '--';
-  const diffMs    = new Date(endDate) - new Date(startDate);
-  const diffHours = diffMs / (1000 * 60 * 60);
-  if (diffHours < 1)  return `${Math.round(diffMs / 60000)}min`;
-  if (diffHours < 24) return `${diffHours.toFixed(1)}h`;
-  const days = Math.floor(diffHours / 24);
-  return `${days}d ${Math.round(diffHours % 24)}h`;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -199,47 +201,47 @@ export default function ReWork() {
 
   // ── Status update ────────────────────────────────────────────────────────
   const handleStatusChange = async (rowId, newStatus) => {
-  setUpdatingRow(rowId);
-  const snapshot = reworkData;
-  const now = new Date().toISOString();
-  let completedDate = null;
+    setUpdatingRow(rowId);
+    const snapshot = reworkData;
+    const now = new Date().toISOString();
+    let completedDate = null;
 
-  const rw = reworkData.find((r) => r.id === rowId);
-  const currentColumnIds = { ...columnIds };
+    const rw = reworkData.find((r) => r.id === rowId);
+    const currentColumnIds = { ...columnIds };
 
-  setReworkData((prev) =>
-    prev.map((r) => {
-      if (r.id !== rowId) return r;
-      const updates = { status: newStatus };
-      if (newStatus === 'En Revisión' && !r.inReviewDate) updates.inReviewDate = now;
-      if (newStatus === 'Terminado') {
-        updates.completedDate = now;
-        completedDate = now;
-        if (!r.inReviewDate) updates.inReviewDate = now;
-        updates.deadTimeTotal = r.registeredDate
-          ? parseFloat(((Date.now() - new Date(r.registeredDate)) / (1000 * 60 * 60)).toFixed(2))
-          : null;
-      }
-      return { ...r, ...updates };
-    })
-  );
-
-  try {
-    await updateReworkStatus(
-      rowId,
-      newStatus,
-      rw?.registeredDate || null,
-      completedDate,
-      currentColumnIds,
+    setReworkData((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const updates = { status: newStatus };
+        if (newStatus === 'En Revisión' && !r.inReviewDate) updates.inReviewDate = now;
+        if (newStatus === 'Terminado') {
+          updates.completedDate = now;
+          completedDate = now;
+          if (!r.inReviewDate) updates.inReviewDate = now;
+          updates.deadTimeTotal = r.registeredDate
+            ? parseFloat(((Date.now() - new Date(r.registeredDate)) / (1000 * 60 * 60)).toFixed(2))
+            : null;
+        }
+        return { ...r, ...updates };
+      })
     );
-  } catch (err) {
-    console.error('Error updating status:', err);
-    setReworkData(snapshot);
-    alert('Error al actualizar el estado. Intenta de nuevo.');
-  } finally {
-    setUpdatingRow(null);
-  }
-};
+
+    try {
+      await updateReworkStatus(
+        rowId,
+        newStatus,
+        rw?.registeredDate || null,
+        completedDate,
+        currentColumnIds,
+      );
+    } catch (err) {
+      console.error('Error updating status:', err);
+      setReworkData(snapshot);
+      alert('Error al actualizar el estado. Intenta de nuevo.');
+    } finally {
+      setUpdatingRow(null);
+    }
+  };
 
   // ── Export ───────────────────────────────────────────────────────────────
   const handleExport = () => {
@@ -256,8 +258,9 @@ export default function ReWork() {
       'Tiempo Estimado (hrs)':  rw.estimatedTime || 0,
       'Hora Muerta Total (hrs)': rw.deadTimeTotal ?? 'N/A',
       Estado:                   rw.status,
+      'Fecha Form':             rw.formDate || 'N/A',
+      'Creado por':             rw.createdBy || 'N/A',
       Registrado:               rw.registeredDate || 'N/A',
-      'Fecha Asignado':         rw.assignedDate || 'N/A',
       Completado:               rw.completedDate || 'N/A',
     }));
 
@@ -276,16 +279,17 @@ export default function ReWork() {
   };
 
   // ── Derived data ─────────────────────────────────────────────────────────
-  const areaChartData  = calculateAreaData(reworkData);
-  const kpiCards       = calculateKPIs(reworkData);
-  const dailyDeadTime  = calcDailyDeadTime(reworkData);
+  const areaChartData   = calculateAreaData(reworkData);
+  const kpiCards        = calculateKPIs(reworkData);
+  const dailyDeadTime   = calcDailyDeadTime(reworkData);
+  const weeklyDeadTime  = calcWeeklyDeadTime(reworkData);
 
   const filteredData = reworkData.filter((rw) => {
     const q = searchTerm.toLowerCase();
     const matchesSearch =
-    (rw.partNumber?.toString() || '').toLowerCase().includes(q)  ||
-    (rw.jobOrder?.toString() || '').toLowerCase().includes(q)    ||
-    (rw.discrepancy?.toString() || '').toLowerCase().includes(q);
+      (rw.partNumber?.toString() || '').toLowerCase().includes(q)  ||
+      (rw.jobOrder?.toString() || '').toLowerCase().includes(q)    ||
+      (rw.discrepancy?.toString() || '').toLowerCase().includes(q);
     const matchesStatus = filterStatus === 'Todos' || rw.status === filterStatus;
     const matchesArea   = !selectedArea || rw.area === selectedArea;
     return matchesSearch && matchesStatus && matchesArea;
@@ -295,12 +299,24 @@ export default function ReWork() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
-  const CustomTooltip = ({ active, payload }) => {
+  const CustomPieTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
     return (
       <div style={{ background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(0,0,0,0.1)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', borderRadius: '12px', padding: '12px 16px' }}>
         <p style={{ fontWeight: 600, color: '#0F172A', marginBottom: 4, fontSize: 13 }}>{payload[0].name}</p>
         <p style={{ fontWeight: 700, color: payload[0].payload.color, fontSize: 15 }}>{payload[0].value} ReWork{payload[0].value !== 1 ? 's' : ''}</p>
+      </div>
+    );
+  };
+
+  // Tooltip personalizado para la gráfica de horas muertas semanales
+  const CustomLineTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div style={{ background: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(10px)', border: '1px solid rgba(0,0,0,0.1)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', borderRadius: '12px', padding: '12px 16px' }}>
+        <p style={{ fontWeight: 600, color: '#64748B', marginBottom: 4, fontSize: 12 }}>{label}</p>
+        <p style={{ fontWeight: 700, color: '#F97316', fontSize: 18 }}>{payload[0].value}h</p>
+        <p style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Horas muertas</p>
       </div>
     );
   };
@@ -400,8 +416,10 @@ export default function ReWork() {
           ))}
         </div>
 
-        {/* ── Donut Chart ── */}
-        <div className="mb-6 md:mb-8">
+        {/* ── Charts Row: Donut + Línea semanal ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 md:mb-8">
+
+          {/* Donut Chart */}
           <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.4)', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -410,7 +428,7 @@ export default function ReWork() {
                 </div>
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: '#0F172A', letterSpacing: '-0.3px' }}>ReWorks por Área</h3>
-                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#94A3B8' }}>{selectedArea ? `Filtrando: ${selectedArea}` : 'Haz clic en un área para filtrar la tabla'}</p>
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#94A3B8' }}>{selectedArea ? `Filtrando: ${selectedArea}` : 'Haz clic en un área para filtrar'}</p>
                 </div>
               </div>
               {selectedArea && (
@@ -420,19 +438,67 @@ export default function ReWork() {
               )}
             </div>
             {areaChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <Pie data={areaChartData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} dataKey="value" strokeWidth={3} stroke="#fff" onClick={(d) => d?.name && setSelectedArea(d.name === selectedArea ? null : d.name)} style={{ cursor: 'pointer' }}>
+                  <Pie data={areaChartData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" strokeWidth={3} stroke="#fff" onClick={(d) => d?.name && setSelectedArea(d.name === selectedArea ? null : d.name)} style={{ cursor: 'pointer' }}>
                     {areaChartData.map((entry, i) => (
                       <Cell key={`cell-${i}`} fill={entry.color} opacity={!selectedArea || selectedArea === entry.name ? 1 : 0.3} style={{ filter: selectedArea === entry.name ? 'brightness(1.1)' : 'none' }} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<CustomPieTooltip />} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500 }} />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-48" style={{ color: '#94A3B8', fontFamily: 'var(--font-body)' }}>Sin datos para mostrar</div>
+            )}
+          </div>
+
+          {/* Gráfica horas muertas por semana */}
+          <div className="rounded-2xl p-6" style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.4)', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #F97316 100%)', color: 'white', boxShadow: '0 4px 16px rgba(249,115,22,0.3)' }}>
+                <TrendingDown size={18} />
+              </div>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18, color: '#0F172A', letterSpacing: '-0.3px' }}>Tendencia</h3>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#94A3B8' }}>Horas muertas · últimas 8 semanas</p>
+              </div>
+            </div>
+            {weeklyDeadTime.length > 0 ? (
+              <>
+                {/* Definición del gradiente SVG */}
+                <svg width="0" height="0" style={{ position: 'absolute' }}>
+                  <defs>
+                    <linearGradient id="deadTimeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%"   stopColor="#F59E0B" />
+                      <stop offset="100%" stopColor="#F97316" />
+                    </linearGradient>
+                    <linearGradient id="deadTimeAreaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%"   stopColor="#F97316" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#F59E0B" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={weeklyDeadTime} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
+                    <XAxis dataKey="week" tick={{ fontFamily: 'var(--font-body)', fontSize: 12, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontFamily: 'var(--font-body)', fontSize: 12, fill: '#94A3B8' }} axisLine={false} tickLine={false} unit="h" />
+                    <Tooltip content={<CustomLineTooltip />} cursor={{ stroke: 'rgba(249,115,22,0.2)', strokeWidth: 2 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="hours"
+                      stroke="url(#deadTimeGradient)"
+                      strokeWidth={3}
+                      dot={{ fill: '#F97316', strokeWidth: 2, r: 5, stroke: '#fff' }}
+                      activeDot={{ r: 7, fill: '#F97316', stroke: '#fff', strokeWidth: 2 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-48" style={{ color: '#94A3B8', fontFamily: 'var(--font-body)' }}>Sin datos semanales aún</div>
             )}
           </div>
         </div>
@@ -472,21 +538,20 @@ export default function ReWork() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1500px]">
+            <table className="w-full min-w-[1600px]">
               <thead>
                 <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
-                  {['No. de Parte', 'Job Order', 'Tipo', 'Cantidad', 'Discrepancia', 'Área', 'Detalles del Proceso', 'Tiempo Est.', 'SLA', 'Hora Muerta Total', 'Estado', 'Acciones'].map((h) => (
+                  {['No. de Parte', 'Job Order', 'Tipo', 'Cantidad', 'Discrepancia', 'Área', 'Detalles del Proceso', 'Tiempo Est.', 'Urgencia', 'Hora Muerta Total', 'Fecha Form', 'Creado por', 'Estado', 'Acciones'].map((h) => (
                     <th key={h} className="px-7 py-4 text-left" style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredData.map((rw) => {
-                  const statusStyle = getStatusStyle(rw.status);
-                  const areaColor   = areaChartData.find((a) => a.name === rw.area)?.color || '#94A3B8';
-                  const isUpdating  = updatingRow === rw.id;
-                  const slaStatus   = getSLAStatus(rw);
-                  const slaHours    = getSLA(rw.reworkType);
+                  const statusStyle  = getStatusStyle(rw.status);
+                  const areaColor    = areaChartData.find((a) => a.name === rw.area)?.color || '#94A3B8';
+                  const isUpdating   = updatingRow === rw.id;
+                  const urgency      = getUrgencyStatus(rw);
 
                   return (
                     <tr key={rw.id} className="transition-all hover:bg-white/60" style={{ borderBottom: '1px solid rgba(0,0,0,0.05)', opacity: isUpdating ? 0.6 : 1 }}>
@@ -547,15 +612,17 @@ export default function ReWork() {
                         </div>
                       </td>
 
-                      {/* SLA */}
+                      {/* Urgencia (reemplaza SLA) */}
                       <td className="px-7 py-5">
-                        {slaStatus ? (
+                        {urgency ? (
                           <div className="flex flex-col gap-1">
-                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ backgroundColor: slaStatus.bg, color: slaStatus.color, fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, border: `1px solid ${slaStatus.color}40` }}>
-                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: slaStatus.color }} />
-                              {slaStatus.label}
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ backgroundColor: urgency.bg, color: urgency.color, fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 700, border: `1px solid ${urgency.border}` }}>
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: urgency.color }} />
+                              {urgency.label}
                             </div>
-                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#94A3B8' }}>Límite: {slaHours}h</span>
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 10, color: '#94A3B8' }}>
+                              Límite: {rw.reworkType === 'Retrabajo Mayor' ? '48' : '24'}h
+                            </span>
                           </div>
                         ) : rw.status === 'Terminado' ? (
                           <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#10B981', fontWeight: 600 }}>✓ Completado</span>
@@ -577,6 +644,32 @@ export default function ReWork() {
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: '#F59E0B' }}>
                               {((Date.now() - new Date(rw.registeredDate)) / (1000 * 60 * 60)).toFixed(1)}h (en curso)
                             </span>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94A3B8', fontSize: 12 }}>--</span>
+                        )}
+                      </td>
+
+                      {/* Fecha Form */}
+                      <td className="px-7 py-5">
+                        {rw.formDate ? (
+                          <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#475569' }}>
+                            {new Date(rw.formDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            <div style={{ fontSize: 11, color: '#94A3B8' }}>
+                              {new Date(rw.formDate).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: '#94A3B8', fontSize: 12 }}>--</span>
+                        )}
+                      </td>
+
+                      {/* Creado por */}
+                      <td className="px-7 py-5">
+                        {rw.createdBy ? (
+                          <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg" style={{ backgroundColor: '#F1F5F9', border: '1px solid #E2E8F0' }}>
+                            <User size={12} style={{ color: '#64748B' }} />
+                            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500, color: '#475569' }}>{rw.createdBy}</span>
                           </div>
                         ) : (
                           <span style={{ color: '#94A3B8', fontSize: 12 }}>--</span>

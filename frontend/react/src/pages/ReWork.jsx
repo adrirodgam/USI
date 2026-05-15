@@ -280,9 +280,9 @@ export default function ReWork() {
   const filteredData = reworkData.filter((rw) => {
     const q = searchTerm.toLowerCase();
     const matchesSearch =
-      rw.partNumber.toLowerCase().includes(q)  ||
-      rw.jobOrder.toLowerCase().includes(q)    ||
-      rw.discrepancy.toLowerCase().includes(q);
+    (rw.partNumber?.toString() || '').toLowerCase().includes(q)  ||
+    (rw.jobOrder?.toString() || '').toLowerCase().includes(q)    ||
+    (rw.discrepancy?.toString() || '').toLowerCase().includes(q);
     const matchesStatus = filterStatus === 'Todos' || rw.status === filterStatus;
     const matchesArea   = !selectedArea || rw.area === selectedArea;
     return matchesSearch && matchesStatus && matchesArea;

@@ -33,7 +33,14 @@ const calcDeadTimeHours = (registeredDate, completedDate) => {
 // GET /reworks
 router.get('/reworks', async (req, res) => {
   try {
-    const sheet = await getSheet(REWORK_SHEET_ID);
+    const sheet = await getSheet(REWORK_SHEET_ID, { include: 'rowWriterInfo' });
+    if (sheet.rows) {
+      sheet.rows = sheet.rows.map((row) => ({
+        ...row,
+        _formDate:  row.createdAt          || null,
+        _createdBy: row.createdBy?.name    || null,
+      }));
+    }
     res.json(sheet);
   } catch (error) {
     console.error('Error in /reworks:', error);

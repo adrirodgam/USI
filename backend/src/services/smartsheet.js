@@ -205,17 +205,12 @@ async function saveCertificate(certificateData, fileBuffer, fileName) {
   }
 }
 
-async function updateRow(sheetId, rowId, status) {
+async function updateRow(sheetId, rowId, cells) {
   try {
-    const sheet = await getSheet(sheetId);
-    const statusCol = sheet.columns.find(c => c.title === 'Estado');
-    if (!statusCol) {
-      throw new Error('Column "Estado" not found in sheet');
-    }
     const response = await axios.put(`${BASE_URL}/sheets/${sheetId}/rows`,
       [{
         id: rowId,
-        cells: [{ columnId: statusCol.id, value: status }]
+        cells: cells
       }],
       {
         headers: {

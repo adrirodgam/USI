@@ -199,50 +199,47 @@ export default function ReWork() {
 
   // ── Status update ────────────────────────────────────────────────────────
   const handleStatusChange = async (rowId, newStatus) => {
-    setUpdatingRow(rowId);
+  setUpdatingRow(rowId);
+  const snapshot = reworkData;
+  const now = new Date().toISOString();
+  let completedDate = null;
 
-    // Snapshot anterior para rollback si falla
-    const snapshot = reworkData;
+  const rw = reworkData.find((r) => r.id === rowId);
+  const currentColumnIds = { ...columnIds };
 
-    // Calcular fechas de transición
-    const now = new Date().toISOString();
-    let completedDate = null;
+  setReworkData((prev) =>
+    prev.map((r) => {
+      if (r.id !== rowId) return r;
+      const updates = { status: newStatus };
+      if (newStatus === 'En Revisión' && !r.inReviewDate) updates.inReviewDate = now;
+      if (newStatus === 'Terminado') {
+        updates.completedDate = now;
+        completedDate = now;
+        if (!r.inReviewDate) updates.inReviewDate = now;
+        updates.deadTimeTotal = r.registeredDate
+          ? parseFloat(((Date.now() - new Date(r.registeredDate)) / (1000 * 60 * 60)).toFixed(2))
+          : null;
+      }
+      return { ...r, ...updates };
+    })
+  );
 
-    setReworkData((prev) =>
-      prev.map((rw) => {
-        if (rw.id !== rowId) return rw;
-        const updates = { status: newStatus };
-        if (newStatus === 'En Revisión' && !rw.inReviewDate)  updates.inReviewDate  = now;
-        if (newStatus === 'Terminado') {
-          updates.completedDate = now;
-          completedDate = now;
-          if (!rw.inReviewDate) updates.inReviewDate = now;
-          updates.deadTimeTotal = rw.registeredDate
-            ? parseFloat(((Date.now() - new Date(rw.registeredDate)) / (1000 * 60 * 60)).toFixed(2))
-            : null;
-        }
-        return { ...rw, ...updates };
-      })
+  try {
+    await updateReworkStatus(
+      rowId,
+      newStatus,
+      rw?.registeredDate || null,
+      completedDate,
+      currentColumnIds,
     );
-
-    try {
-      const rw = reworkData.find((r) => r.id === rowId);
-      await updateReworkStatus(
-        rowId,
-        newStatus,
-        rw?.registeredDate || null,
-        completedDate,
-        columnIds,
-      );
-    } catch (err) {
-      console.error('Error updating status:', err);
-      // Rollback optimista
-      setReworkData(snapshot);
-      alert('Error al actualizar el estado. Intenta de nuevo.');
-    } finally {
-      setUpdatingRow(null);
-    }
-  };
+  } catch (err) {
+    console.error('Error updating status:', err);
+    setReworkData(snapshot);
+    alert('Error al actualizar el estado. Intenta de nuevo.');
+  } finally {
+    setUpdatingRow(null);
+  }
+};
 
   // ── Export ───────────────────────────────────────────────────────────────
   const handleExport = () => {

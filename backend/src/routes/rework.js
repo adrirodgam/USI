@@ -47,6 +47,8 @@ router.put('/reworks/:rowId/status', async (req, res) => {
     const { rowId } = req.params;
     const { status, registeredDate, completedDate, columnIds } = req.body;
 
+    console.log('DEBUG:', { rowId, status, columnIds });
+
     if (!status) {
       return res.status(400).json({ error: 'El campo status es requerido' });
     }

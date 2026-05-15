@@ -248,6 +248,7 @@ export default function ReWork() {
     if (filteredData.length === 0) return;
 
     const rows = filteredData.map((rw) => ({
+      'Fecha:             rw.formDate || 'N/A',
       'No. de Parte':           rw.partNumber,
       'Job Order':              rw.jobOrder,
       'Tipo de ReTrabajo':      rw.reworkType || 'N/A',
@@ -258,7 +259,6 @@ export default function ReWork() {
       'Tiempo Estimado (hrs)':  rw.estimatedTime || 0,
       'Hora Muerta Total (hrs)': rw.deadTimeTotal ?? 'N/A',
       Estado:                   rw.status,
-      'Fecha Form':             rw.formDate || 'N/A',
       'Creado por':             rw.createdBy || 'N/A',
       Registrado:               rw.registeredDate || 'N/A',
       Completado:               rw.completedDate || 'N/A',

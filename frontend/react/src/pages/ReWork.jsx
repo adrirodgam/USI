@@ -100,7 +100,7 @@ const calcDailyDeadTime = (data) => {
     if (!rw.registeredDate) return false;
     return new Date(rw.registeredDate).toDateString() === today;
   });
-  const totalHours = todayReworks.reduce((sum, rw) => sum + (rw.estimatedTime || 0), 0);
+  const totalHours = data.reduce((s, r) => s + (r.deadTimeTotal || 0), 0);
 
   let color, bg, label;
   if (totalHours >= 10) {
@@ -119,14 +119,20 @@ const calculateKPIs = (data) => {
   const pending    = data.filter((r) => r.status === 'Pendiente').length;
   const inProcess  = data.filter((r) => r.status === 'En Proceso').length;
   const completed  = data.filter((r) => r.status === 'Terminado').length;
-  const totalHours = data.reduce((s, r) => s + r.estimatedTime, 0);
+  // Sum of actual dead time hours from completed reworks
+  const totalDeadHours = data.reduce((s, r) => s + (r.deadTimeTotal || 0), 0);
+  // Average dead time only from rows that have a deadTimeTotal value
+  const completedWithDeadTime = data.filter((r) => r.deadTimeTotal !== null);
+  const avgDeadTime = completedWithDeadTime.length > 0
+    ? (completedWithDeadTime.reduce((s, r) => s + r.deadTimeTotal, 0) / completedWithDeadTime.length).toFixed(1)
+    : '--';
 
   return [
     { label: 'Total de ReWorks',      value: total.toString(),            trend: 'Registros activos',                                                       trendPositive: null, icon: <RotateCcw size={22} />,   bgGradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)' },
     { label: 'Pendientes',            value: pending.toString(),          trend: 'Sin asignar aún',                                                         trendPositive: null, icon: <AlertCircle size={22} />, bgGradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' },
     { label: 'En Proceso',            value: inProcess.toString(),        trend: 'Área y tiempo asignados',                                                 trendPositive: null, icon: <Clock size={22} />,       bgGradient: 'linear-gradient(135deg, #06B6D4 0%, #0891B2 100%)' },
     { label: 'Terminados',            value: completed.toString(),        trend: total > 0 ? `${Math.round((completed / total) * 100)}% completado` : '0%', trendPositive: true, icon: <CheckCircle size={22} />, bgGradient: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' },
-    { label: 'Horas Muertas Totales', value: `${totalHours.toFixed(1)}h`, trend: total > 0 ? `${(totalHours / total).toFixed(1)}h promedio` : '--',         trendPositive: null, icon: <TrendingDown size={22} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' },
+    { label: 'Horas Muertas Totales', value: `${totalDeadHours.toFixed(1)}h`, trend: completedWithDeadTime.length > 0 ? `${avgDeadTime}h promedio` : 'Sin datos', trendPositive: null, icon: <TrendingDown size={22} />, bgGradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' },
   ];
 };
 

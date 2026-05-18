@@ -28,10 +28,6 @@ export default function Login() {
 
       if (result) {
         const token = result.session.access_token;
-        localStorage.setItem("token", token);
-        localStorage.setItem("name", result.user.name);
-        localStorage.setItem("role", result.user.role);
-        localStorage.setItem("initial", result.user.initial);
         
         handleLoginSuccess(token);
         navigate("/");

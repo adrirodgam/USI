@@ -218,8 +218,9 @@ export default function ReWork() {
           updates.completedDate = now;
           completedDate = now;
           if (!r.inReviewDate) updates.inReviewDate = now;
-          updates.deadTimeTotal = r.registeredDate
-            ? parseFloat(((Date.now() - new Date(r.registeredDate)) / (1000 * 60 * 60)).toFixed(2))
+          const startDate = r.registeredDate || r.formDate;
+          updates.deadTimeTotal = startDate
+            ? parseFloat(((Date.now() - new Date(startDate)) / (1000 * 60 * 60)).toFixed(2))
             : null;
         }
         return { ...r, ...updates };
@@ -231,6 +232,7 @@ export default function ReWork() {
         rowId,
         newStatus,
         rw?.registeredDate || null,
+        rw?.formDate       || null,
         completedDate,
         currentColumnIds,
       );
@@ -248,7 +250,6 @@ export default function ReWork() {
     if (filteredData.length === 0) return;
 
     const rows = filteredData.map((rw) => ({
-      'Fecha':                  rw.formDate || 'N/A',
       'No. de Parte':           rw.partNumber,
       'Job Order':              rw.jobOrder,
       'Tipo de ReTrabajo':      rw.reworkType || 'N/A',
@@ -259,6 +260,7 @@ export default function ReWork() {
       'Tiempo Estimado (hrs)':  rw.estimatedTime || 0,
       'Hora Muerta Total (hrs)': rw.deadTimeTotal ?? 'N/A',
       Estado:                   rw.status,
+      'Fecha Form':             rw.formDate || 'N/A',
       'Creado por':             rw.createdBy || 'N/A',
       Registrado:               rw.registeredDate || 'N/A',
       Completado:               rw.completedDate || 'N/A',

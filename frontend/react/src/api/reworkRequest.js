@@ -1,6 +1,6 @@
 // frontend/react/src/api/reworkRequest.js
 const API_URL = `${import.meta.env.VITE_API_URL}/api`;
-
+ 
 const getAuthHeader = () => {
   const token = localStorage.getItem('token');
   return {
@@ -8,7 +8,7 @@ const getAuthHeader = () => {
     'Content-Type': 'application/json',
   };
 };
-
+ 
 export const getReworks = async () => {
   try {
     const response = await fetch(`${API_URL}/rework/reworks`, {
@@ -21,13 +21,13 @@ export const getReworks = async () => {
     throw error;
   }
 };
-
-export const updateReworkStatus = async (rowId, status, registeredDate, completedDate, columnIds) => {
+ 
+export const updateReworkStatus = async (rowId, status, registeredDate, formDate, completedDate, columnIds) => {
   try {
     const response = await fetch(`${API_URL}/rework/reworks/${rowId}/status`, {
       method: 'PUT',
       headers: getAuthHeader(),
-      body: JSON.stringify({ status, registeredDate, completedDate, columnIds }),
+      body: JSON.stringify({ status, registeredDate, formDate, completedDate, columnIds }),
     });
     if (!response.ok) throw new Error('Error al actualizar estado');
     return await response.json();

@@ -692,7 +692,7 @@ export default function ReWork() {
                       {/* Acciones */}
                       <td className="px-7 py-5">
                         {rw.status !== 'Terminado' ? (
-                          <select value={rw.status || 'Pendiente'} disabled={isUpdating} onChange={(e) => handleStatusChange(rw.id, e.target.value)} className="px-3 py-1.5 rounded-lg text-xs transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', fontFamily: 'var(--font-body)', fontWeight: 600, color: '#475569', cursor: isUpdating ? 'wait' : 'pointer' }}>
+                          <select value={rw.status || 'Pendiente'} disabled={isUpdating || getUrgencyStatus(rw)?.label === "Vencido "} onChange={(e) => handleStatusChange(rw.id, e.target.value)} className="px-3 py-1.5 rounded-lg text-xs transition-all hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', fontFamily: 'var(--font-body)', fontWeight: 600, color: '#475569', cursor: isUpdating ? 'wait' : 'pointer' }}>
                             <option value="Pendiente">Pendiente</option>
                             <option value="En Proceso">En Proceso</option>
                             <option value="En Revisión">En Revisión</option>
